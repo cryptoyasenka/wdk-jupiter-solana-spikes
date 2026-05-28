@@ -84,9 +84,12 @@ npm run spike:b:surfpool
 3. **ALT package** — `@solana-program/address-lookup-table@0.9.0` is the version
    whose peer is `@solana/kit@^4.0` (0.7.0 peers ^2, 0.11.0 peers ^6 — both wrong);
    `fetchAddressLookupTable` present and works against live mainnet.
-4. **Jupiter host** — keyless `lite-api.jup.ag/swap/v1` returned a live 200 from
-   both Bare and Node (the keyed `api.jup.ag/swap/v2` is a `jupiterBaseUrl`
-   override away, since the module consumes *raw instructions*, not a prebuilt tx).
+4. **Jupiter host** — keyless `lite-api.jup.ag/swap/v1` (`/quote` + `/swap-instructions`)
+   returned a live 200 from both Bare and Node. The keyed host `api.jup.ag` serves the same
+   v1 contract for higher limits; Jupiter's newer Unified Swap **v2** (`api.jup.ag/swap/v2` —
+   `/order`·`/build`·`/execute`) is a different surface, but because the module consumes
+   *raw instructions* and composes the tx itself, the Jupiter source stays behind a thin
+   adapter, not the module's transaction logic.
 
 ## Why this is the cheap path
 
