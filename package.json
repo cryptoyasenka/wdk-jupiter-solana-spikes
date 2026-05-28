@@ -1,0 +1,22 @@
+{
+  "name": "wdk-jupiter-solana-spikes",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Phase-0 de-risk spikes for wdk-protocol-swap-jupiter-solana (a Jupiter same-chain Solana swap module for Tether's WDK). Throwaway experiments, NOT the module.",
+  "license": "MIT",
+  "author": "cryptoyasenka",
+  "type": "module",
+  "scripts": {
+    "spike:a": "bare spike-a-bare-fetch-tls.cjs",
+    "spike:b:sim": "node spike-b-sim-mainnet.mjs",
+    "spike:b:surfpool": "node spike-b-alt-route-surfpool.mjs"
+  },
+  "dependencies": {
+    "@solana/kit": "4.0.0",
+    "@solana-program/address-lookup-table": "^0.9.0",
+    "bare-fetch": "^3.0.1"
+  },
+  "devDependencies": {
+    "bare": "^1.28.5"
+  }
+}
