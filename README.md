@@ -49,8 +49,9 @@ npm run spike:a        # = bare spike-a-bare-fetch-tls.cjs
 
 ### Spike B (sim) — ALT/versioned vs live mainnet, no Surfpool needed  (PASS)
 ```sh
-# the default api.mainnet-beta.solana.com may refuse datacenter IPs; publicnode works:
-SOLANA_RPC=https://solana-rpc.publicnode.com npm run spike:b:sim
+npm run spike:b:sim
+# default RPC is solana-rpc.publicnode.com — works from datacenter IPs (unlike
+# api.mainnet-beta.solana.com, which refuses them). Override: SOLANA_RPC=<endpoint>
 ```
 - Runs the full build path (Jupiter `/swap-instructions` → `@solana/kit` → fetch
   ALTs from mainnet → compress → compile v0) and finishes with

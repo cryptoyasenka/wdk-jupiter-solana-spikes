@@ -13,10 +13,10 @@
   },
   "dependencies": {
     "@solana/kit": "4.0.0",
-    "@solana-program/address-lookup-table": "^0.9.0",
-    "bare-fetch": "^3.0.1"
+    "@solana-program/address-lookup-table": "0.9.0",
+    "bare-fetch": "3.0.1"
   },
   "devDependencies": {
-    "bare": "^1.28.5"
+    "bare": "1.28.5"
   }
 }

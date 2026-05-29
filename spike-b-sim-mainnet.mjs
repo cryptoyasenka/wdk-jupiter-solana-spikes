@@ -42,7 +42,7 @@ import {
 } from '@solana/kit'
 import { fetchAddressLookupTable } from '@solana-program/address-lookup-table'
 
-const RPC_HTTP = process.env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com'
+const RPC_HTTP = process.env.SOLANA_RPC || 'https://solana-rpc.publicnode.com'
 const JUPITER_BASE = 'https://lite-api.jup.ag/swap/v1'
 const WSOL_MINT = 'So11111111111111111111111111111111111111112'
 const USDT_MINT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
