@@ -1,22 +1,66 @@
 {
-  "name": "wdk-jupiter-solana-spikes",
+  "name": "wdk-protocol-swap-jupiter-solana",
   "version": "0.1.0",
-  "private": true,
-  "description": "Phase-0 de-risk spikes for wdk-protocol-swap-jupiter-solana (a Jupiter same-chain Solana swap module for Tether's WDK). Throwaway experiments, NOT the module.",
-  "license": "MIT",
+  "description": "Lets @tetherto/wdk-wallet-solana wallet accounts swap SPL tokens through the Jupiter aggregator (Swap API v2 /build, with v1 as a documented fallback). The Solana peer of @tetherto/wdk-protocol-swap-velora-evm.",
+  "keywords": [
+    "wdk",
+    "protocol",
+    "swap",
+    "solana",
+    "jupiter",
+    "spl"
+  ],
   "author": "cryptoyasenka",
+  "license": "Apache-2.0",
   "type": "module",
+  "main": "index.js",
   "scripts": {
-    "spike:a": "bare spike-a-bare-fetch-tls.cjs",
-    "spike:b:sim": "node spike-b-sim-mainnet.mjs",
-    "spike:b:surfpool": "node spike-b-alt-route-surfpool.mjs"
+    "build:types": "tsc",
+    "lint": "standard",
+    "lint:fix": "standard --fix",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "spike:a": "bare spikes/phase-0/spike-a-bare-fetch-tls.cjs",
+    "spike:b:sim": "node spikes/phase-0/spike-b-sim-mainnet.mjs",
+    "spike:b:surfpool": "node spikes/phase-0/spike-b-alt-route-surfpool.mjs"
   },
   "dependencies": {
-    "@solana/kit": "4.0.0",
-    "@solana-program/address-lookup-table": "0.9.0",
-    "bare-fetch": "3.0.1"
+    "@tetherto/wdk-wallet": "1.0.0-beta.7",
+    "@tetherto/wdk-wallet-solana": "1.0.0-beta.9",
+    "@solana/addresses": "3.0.3",
+    "@solana/instructions": "3.0.3",
+    "@solana/transaction-messages": "3.0.3",
+    "@solana-program/address-lookup-table": "0.9.0"
   },
   "devDependencies": {
-    "bare": "1.28.5"
+    "@solana/kit": "4.0.0",
+    "bare": "1.28.5",
+    "bare-fetch": "3.0.1",
+    "cross-env": "10.0.0",
+    "jest": "30.0.5",
+    "standard": "17.1.2",
+    "typescript": "5.8.3"
+  },
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "bare": "./bare.js",
+      "default": "./index.js"
+    },
+    "./package": {
+      "default": "./package.json"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "standard": {
+    "ignore": [
+      "bare.js",
+      "tests/**/*.js",
+      "spikes/**/*",
+      "types/**/*"
+    ]
   }
 }
