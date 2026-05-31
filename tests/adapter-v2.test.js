@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 import { buildV2 } from '../src/adapters/jupiter-v2.js'
-import { COMPUTE_BUDGET_PROGRAM } from '../src/constants.js'
+import { COMPUTE_BUDGET_PROGRAM, DEFAULT_SLIPPAGE_BPS } from '../src/constants.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixture = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'jupiter-v2-build.json'), 'utf8'))
@@ -139,5 +139,42 @@ describe('buildV2', () => {
     const [url] = global.fetch.mock.calls[0]
     expect(String(url)).toContain('dexes=Whirlpool%2CRaydium')
     expect(String(url)).toContain('onlyDirectRoutes=true')
+  })
+
+  test('an explicit jupiterBaseUrl overrides host selection', async () => {
+    await buildV2(PARAMS, { jupiterBaseUrl: 'https://my.proxy.example' })
+    const [url] = global.fetch.mock.calls[0]
+    expect(String(url)).toContain('https://my.proxy.example/swap/v2/build')
+  })
+
+  test('slippageBps falls back to cfg.slippageBps when params omits it', async () => {
+    await buildV2(
+      { inputMint: PARAMS.inputMint, outputMint: PARAMS.outputMint, amount: PARAMS.amount, taker: PARAMS.taker },
+      { slippageBps: 99 }
+    )
+    expect(String(global.fetch.mock.calls[0][0])).toContain('slippageBps=99')
+  })
+
+  test('slippageBps falls back to the default when neither params nor cfg set it', async () => {
+    await buildV2(
+      { inputMint: PARAMS.inputMint, outputMint: PARAMS.outputMint, amount: PARAMS.amount, taker: PARAMS.taker },
+      {}
+    )
+    expect(String(global.fetch.mock.calls[0][0])).toContain(`slippageBps=${DEFAULT_SLIPPAGE_BPS}`)
+  })
+
+  test('accepts dexes as a plain string (not just an array)', async () => {
+    await buildV2(PARAMS, { dexes: 'Whirlpool' })
+    expect(String(global.fetch.mock.calls[0][0])).toContain('dexes=Whirlpool')
+  })
+
+  test('tolerates a response that omits the optional instruction groups + ALTs', async () => {
+    const minimal = { swapInstruction: { programId: 'Jup6', accounts: [], data: 'Ag==' }, inAmount: '1', outAmount: '2', swapMode: 'ExactIn' }
+    global.fetch = mockFetchOk(minimal)
+    const out = await buildV2(PARAMS, {})
+    // only the prepended CU-limit + the lone swap instruction survive .filter(Boolean)
+    expect(out.instructions).toHaveLength(2)
+    expect(out.instructions[1]).toEqual(minimal.swapInstruction)
+    expect(out.lookupTables).toEqual({})
   })
 })

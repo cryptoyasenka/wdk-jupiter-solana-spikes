@@ -16,7 +16,7 @@ jest.unstable_mockModule('@solana-program/address-lookup-table', () => ({
 }))
 
 const { buildV1 } = await import('../src/adapters/jupiter-v1.js')
-const { COMPUTE_BUDGET_PROGRAM } = await import('../src/constants.js')
+const { COMPUTE_BUDGET_PROGRAM, DEFAULT_SLIPPAGE_BPS } = await import('../src/constants.js')
 
 const PARAMS = {
   inputMint: 'So11111111111111111111111111111111111111112',
@@ -141,5 +141,52 @@ describe('buildV1', () => {
     expect(String(quoteUrl)).toContain('onlyDirectRoutes=true')
     const [, ixInit] = global.fetch.mock.calls[1]
     expect(JSON.parse(ixInit.body).destinationTokenAccount).toBe('DestTokenAcct1111111111111111111111111111111')
+  })
+
+  test('an explicit jupiterBaseUrl overrides host selection (both calls)', async () => {
+    await buildV1(PARAMS, { jupiterBaseUrl: 'https://my.proxy.example' }, FAKE_RPC)
+    expect(String(global.fetch.mock.calls[0][0])).toContain('https://my.proxy.example/swap/v1/quote')
+    expect(String(global.fetch.mock.calls[1][0])).toContain('https://my.proxy.example/swap/v1/swap-instructions')
+  })
+
+  test('sends x-api-key header and uses the keyed host when jupiterApiKey is set', async () => {
+    await buildV1(PARAMS, { jupiterApiKey: 'secret' }, FAKE_RPC)
+    const [url, init] = global.fetch.mock.calls[0]
+    expect(String(url)).toContain('api.jup.ag/swap/v1/quote')
+    expect(init.headers['x-api-key']).toBe('secret')
+  })
+
+  test('slippageBps falls back to cfg.slippageBps when params omits it', async () => {
+    await buildV1(
+      { inputMint: PARAMS.inputMint, outputMint: PARAMS.outputMint, amount: PARAMS.amount, taker: PARAMS.taker },
+      { slippageBps: 99 },
+      FAKE_RPC
+    )
+    expect(String(global.fetch.mock.calls[0][0])).toContain('slippageBps=99')
+  })
+
+  test('slippageBps falls back to the default when neither params nor cfg set it', async () => {
+    await buildV1(
+      { inputMint: PARAMS.inputMint, outputMint: PARAMS.outputMint, amount: PARAMS.amount, taker: PARAMS.taker },
+      {},
+      FAKE_RPC
+    )
+    expect(String(global.fetch.mock.calls[0][0])).toContain(`slippageBps=${DEFAULT_SLIPPAGE_BPS}`)
+  })
+
+  test('accepts dexes as an array (joined with commas)', async () => {
+    await buildV1(PARAMS, { dexes: ['Whirlpool', 'Raydium'] }, FAKE_RPC)
+    expect(String(global.fetch.mock.calls[0][0])).toContain('dexes=Whirlpool%2CRaydium')
+  })
+
+  test('tolerates a /swap-instructions response that omits optional groups + ALT addresses', async () => {
+    const minimalIx = { swapInstruction: { programId: 'Jup6', accounts: [], data: 'Ag==' } }
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce(res(quoteFixture))
+      .mockResolvedValueOnce(res(minimalIx))
+    const out = await buildV1(PARAMS, {}, FAKE_RPC)
+    expect(out.instructions).toEqual([minimalIx.swapInstruction])
+    expect(out.lookupTables).toEqual({})
+    expect(fetchAltMock).not.toHaveBeenCalled()
   })
 })
