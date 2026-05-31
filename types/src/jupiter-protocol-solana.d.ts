@@ -2,7 +2,8 @@
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SwapOptions} SwapOptions */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SwapResult} SwapResult */
 /**
- * @typedef {SwapProtocolConfig & Object} JupiterProtocolConfig
+ * Jupiter-specific config fields, layered on top of the WDK `SwapProtocolConfig` contract.
+ * @typedef {object} JupiterConfigExtras
  * @property {number | bigint} [swapMaxFee] - max fee (lamports) for a swap; the only field from the WDK contract.
  * @property {number} [slippageBps=50] - slippage tolerance in basis points (Jupiter-specific, additive).
  * @property {'v2' | 'v1'} [apiVersion='v2'] - default adapter. v2 `/build` (ExactIn). BUY auto-routes to v1 ExactOut.
@@ -13,6 +14,10 @@
  * @property {number | string} [computeUnitPricePercentile] - v2 priority-fee control ('medium'/'high'/'veryHigh' or 0-10000 bps).
  * @property {string | string[]} [dexes] - Jupiter-native route shaping: restrict routing to these DEX labels (e.g. `'Whirlpool'` or `['Whirlpool','Raydium']`).
  * @property {boolean} [onlyDirectRoutes] - Jupiter-native route shaping: force a single-hop route (no intermediate tokens).
+ */
+/**
+ * Full config: the WDK `SwapProtocolConfig` contract plus the Jupiter extras above.
+ * @typedef {SwapProtocolConfig & JupiterConfigExtras} JupiterProtocolConfig
  */
 /**
  * Lets a `@tetherto/wdk-wallet-solana` account swap SPL tokens through the Jupiter aggregator.
@@ -60,5 +65,53 @@ export default class JupiterProtocolSolana extends SwapProtocol {
 export type SwapProtocolConfig = import("@tetherto/wdk-wallet/protocols").SwapProtocolConfig;
 export type SwapOptions = import("@tetherto/wdk-wallet/protocols").SwapOptions;
 export type SwapResult = import("@tetherto/wdk-wallet/protocols").SwapResult;
-export type JupiterProtocolConfig = SwapProtocolConfig & any;
+/**
+ * Jupiter-specific config fields, layered on top of the WDK `SwapProtocolConfig` contract.
+ */
+export type JupiterConfigExtras = {
+    /**
+     * - max fee (lamports) for a swap; the only field from the WDK contract.
+     */
+    swapMaxFee?: number | bigint;
+    /**
+     * - slippage tolerance in basis points (Jupiter-specific, additive).
+     */
+    slippageBps?: number;
+    /**
+     * - default adapter. v2 `/build` (ExactIn). BUY auto-routes to v1 ExactOut.
+     */
+    apiVersion?: "v2" | "v1";
+    /**
+     * - override the Jupiter host (defaults: keyless lite, or keyed when a key is set).
+     */
+    jupiterBaseUrl?: string;
+    /**
+     * - API key for the keyed host. ENV-ONLY; never hardcode (e.g. `process.env.JUPITER_API_KEY`).
+     */
+    jupiterApiKey?: string;
+    /**
+     * - per-request timeout (ms) for Jupiter HTTP calls; a hung host aborts instead of stalling the swap.
+     */
+    timeoutMs?: number;
+    /**
+     * - CU limit prepended on v2 (`/build` omits it).
+     */
+    computeUnitLimit?: number;
+    /**
+     * - v2 priority-fee control ('medium'/'high'/'veryHigh' or 0-10000 bps).
+     */
+    computeUnitPricePercentile?: number | string;
+    /**
+     * - Jupiter-native route shaping: restrict routing to these DEX labels (e.g. `'Whirlpool'` or `['Whirlpool','Raydium']`).
+     */
+    dexes?: string | string[];
+    /**
+     * - Jupiter-native route shaping: force a single-hop route (no intermediate tokens).
+     */
+    onlyDirectRoutes?: boolean;
+};
+/**
+ * Full config: the WDK `SwapProtocolConfig` contract plus the Jupiter extras above.
+ */
+export type JupiterProtocolConfig = SwapProtocolConfig & JupiterConfigExtras;
 import { SwapProtocol } from '@tetherto/wdk-wallet/protocols';

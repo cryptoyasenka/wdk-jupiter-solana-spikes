@@ -27,7 +27,8 @@ import { buildSwapMessage } from './message.js'
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SwapResult} SwapResult */
 
 /**
- * @typedef {SwapProtocolConfig & Object} JupiterProtocolConfig
+ * Jupiter-specific config fields, layered on top of the WDK `SwapProtocolConfig` contract.
+ * @typedef {object} JupiterConfigExtras
  * @property {number | bigint} [swapMaxFee] - max fee (lamports) for a swap; the only field from the WDK contract.
  * @property {number} [slippageBps=50] - slippage tolerance in basis points (Jupiter-specific, additive).
  * @property {'v2' | 'v1'} [apiVersion='v2'] - default adapter. v2 `/build` (ExactIn). BUY auto-routes to v1 ExactOut.
@@ -38,6 +39,11 @@ import { buildSwapMessage } from './message.js'
  * @property {number | string} [computeUnitPricePercentile] - v2 priority-fee control ('medium'/'high'/'veryHigh' or 0-10000 bps).
  * @property {string | string[]} [dexes] - Jupiter-native route shaping: restrict routing to these DEX labels (e.g. `'Whirlpool'` or `['Whirlpool','Raydium']`).
  * @property {boolean} [onlyDirectRoutes] - Jupiter-native route shaping: force a single-hop route (no intermediate tokens).
+ */
+
+/**
+ * Full config: the WDK `SwapProtocolConfig` contract plus the Jupiter extras above.
+ * @typedef {SwapProtocolConfig & JupiterConfigExtras} JupiterProtocolConfig
  */
 
 /**
