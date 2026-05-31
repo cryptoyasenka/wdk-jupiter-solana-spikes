@@ -88,8 +88,8 @@ through the account, and returns the (quoted) fee alongside the on-chain `hash`.
 |---|---|---|---|
 | `tokenIn` | `string` | yes | mint of the token to sell |
 | `tokenOut` | `string` | yes | mint of the token to buy |
-| `tokenInAmount` | `number \| bigint` | one of `tokenInAmount` / `tokenOutAmount` | exact input — a **SELL** (ExactIn) |
-| `tokenOutAmount` | `number \| bigint` | one of `tokenInAmount` / `tokenOutAmount` | exact output — a **BUY** (ExactOut) |
+| `tokenInAmount` | `number \| bigint` | conditional | exact input — a **SELL** (ExactIn) |
+| `tokenOutAmount` | `number \| bigint` | conditional | exact output — a **BUY** (ExactOut) |
 | `to` | `string` | no | recipient SPL **token account** for `tokenOut`; defaults to the account's own token account |
 
 `tokenInAmount` and `tokenOutAmount` are mutually exclusive — provide exactly one:
