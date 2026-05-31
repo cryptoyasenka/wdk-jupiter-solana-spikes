@@ -1,108 +1,207 @@
-# Phase-0 de-risk spikes — `wdk-protocol-swap-jupiter-solana`
+# wdk-protocol-swap-jupiter-solana
 
-Two throwaway experiments that retire the **two binary risks** of a Jupiter-based
-same-chain Solana swap module for [Tether's WDK](https://docs.wallet.tether.io)
-*before* a single line of module code is written. If either had failed, the
-approach changes now — not three weeks into implementation.
+A Solana swap protocol for [Tether's WDK](https://docs.wdk.tether.io): lets a
+`@tetherto/wdk-wallet-solana` wallet account swap SPL tokens through the
+[Jupiter](https://dev.jup.ag) aggregator. The Solana peer of the official EVM swap
+module [`@tetherto/wdk-protocol-swap-velora-evm`](https://github.com/tetherto/wdk-protocol-swap-velora-evm) —
+same `swap(options)` / `quoteSwap(options)` surface, same
+`{ hash, fee, tokenInAmount, tokenOutAmount }` returns.
 
-This repo is the runnable evidence behind the **design proposal** for a WDK swap
-protocol module (`wdk-protocol-swap-jupiter-solana`) — the Solana peer of the
-official EVM swap module `@tetherto/wdk-protocol-swap-velora-evm`. The point is
-simple: don't ask anyone to *trust* that the hard parts work — let them run it.
+It extends the WDK `SwapProtocol` base contract and builds a Solana `TransactionMessage`
+from Jupiter's raw instructions; the wallet account sets the fee payer, lifetime, and
+signature, then sends it.
 
-## Results (run 2026-05-27)
+## Install
 
-| Spike | Status | Evidence |
-|---|---|---|
-| **A** — Bare TLS → Jupiter | ✅ **PASS (run for real, under `bare`)** | HTTP **200 in 175 ms**; a real route `0.1 SOL → 8.389569 USDT` via Whirlpool. The "can the module even reach Jupiter over HTTPS inside the Bare runtime?" risk is **retired**. |
-| **B (sim)** — ALT / versioned tx via `@solana/kit` vs live mainnet | ✅ **PASS (structural, run for real)** | Fetched 2 real mainnet Address Lookup Tables (**505 addresses**), compressed them, compiled a **v0 wire transaction (1284 base64 chars)**; `simulateTransaction` returned an expected `AccountNotFound` on the unfunded throwaway wallet — i.e. the validator **parsed the versioned tx and resolved the ALTs**. The ALT/versioned/`kit` risk is **retired**. |
-| **B (full)** — landing + USDT balance delta on a Surfpool fork | ⏳ **NOT run here** | Needs [Surfpool](https://docs.surfpool.run) (a Rust binary) installed. The script is ready (`spike-b-alt-route-surfpool.mjs`); the full on-chain landing is part of implementation (M2), at $0 on a local mainnet fork. |
+```sh
+npm i wdk-protocol-swap-jupiter-solana
+```
 
-> **Honest scope:** Spikes **A** and **B(sim)** ran for real and retire both
-> *binary* risks (Bare can reach Jupiter over TLS; a real Jupiter ALT/versioned
-> route composes through `@solana/kit` and the validator accepts it). **B(full)**
-> — the final settled-on-chain landing with a USDT balance delta — has **not** been
-> run here (no Surfpool on the box it was written on); it is implementation-phase
-> work, deliberately not claimed as done.
+`--ignore-scripts` is supported (and recommended) — the package has no install/build step
+of its own:
 
-| Spike | Risk it retires | Runtime | Cost |
+```sh
+npm i wdk-protocol-swap-jupiter-solana --ignore-scripts
+```
+
+Runtime peer: `@tetherto/wdk-wallet-solana` (the wallet that provides the account this
+protocol operates on). The granular `@solana/*` primitives the module builds transactions
+with are pinned to the versions the wallet uses, so the produced `TransactionMessage` is
+type-identical to what the wallet expects.
+
+## Quick start
+
+```js
+import WalletManagerSolana from '@tetherto/wdk-wallet-solana'
+import JupiterProtocolSolana from 'wdk-protocol-swap-jupiter-solana'
+
+const WSOL = 'So11111111111111111111111111111111111111112'
+const USDT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
+
+// A wallet connected to an RPC provider (failover array also supported).
+const wallet = new WalletManagerSolana(mnemonic, { provider: 'https://your-solana-rpc' })
+const account = await wallet.getAccount(0)
+
+const protocol = new JupiterProtocolSolana(account, { slippageBps: 50 })
+
+// Quote only (no transaction sent). Returns bigints.
+const quote = await protocol.quoteSwap({
+  tokenIn: WSOL,
+  tokenOut: USDT,
+  tokenInAmount: 10_000_000n // 0.01 WSOL, in base units
+})
+// quote = { fee, tokenInAmount, tokenOutAmount }
+
+// Build, fee-guard, and send. Returns the quote fields plus the transaction hash.
+const result = await protocol.swap({
+  tokenIn: WSOL,
+  tokenOut: USDT,
+  tokenInAmount: 10_000_000n
+})
+// result = { hash, fee, tokenInAmount, tokenOutAmount }
+```
+
+`swap()` requires a signing account (a `WalletAccountSolana`) connected to a provider;
+`quoteSwap()` works on any provider-connected account, including a read-only one.
+
+## API
+
+### `new JupiterProtocolSolana(account, config?)`
+
+- `account` — a `WalletAccountSolana` (signing) or `WalletAccountReadOnlySolana`
+  (quote-only) from `@tetherto/wdk-wallet-solana`.
+- `config` — a [`JupiterProtocolConfig`](#configuration) (optional).
+
+### `quoteSwap(options)` → `Promise<{ fee, tokenInAmount, tokenOutAmount }>`
+
+Quotes a swap without sending it. All three returned values are `bigint`.
+
+### `swap(options)` → `Promise<{ hash, fee, tokenInAmount, tokenOutAmount }>`
+
+Builds the swap transaction, quotes its fee, enforces the `swapMaxFee` guard, sends it
+through the account, and returns the (quoted) fee alongside the on-chain `hash`. `fee`,
+`tokenInAmount`, and `tokenOutAmount` are `bigint`; `hash` is the transaction signature.
+
+#### `options` (same shape for both methods)
+
+| field | type | required | meaning |
 |---|---|---|---|
-| **A** `spike-a-bare-fetch-tls.cjs` | Bare-TLS unproven — can the module reach Jupiter over HTTPS from inside Bare? | **Bare** | $0 |
-| **B (sim)** `spike-b-sim-mainnet.mjs` | ALT handling unproven — compose a real Jupiter ALT/versioned route via `@solana/kit` and have the validator parse + resolve it (simulate vs live mainnet) | Node | $0 |
-| **B (full)** `spike-b-alt-route-surfpool.mjs` | "mocks don't prove execution" + "no mainnet funds" — **land** the swap on real (forked) state | Node + Surfpool | $0 |
+| `tokenIn` | `string` | yes | mint of the token to sell |
+| `tokenOut` | `string` | yes | mint of the token to buy |
+| `tokenInAmount` | `number \| bigint` | one of `tokenInAmount` / `tokenOutAmount` | exact input — a **SELL** (ExactIn) |
+| `tokenOutAmount` | `number \| bigint` | one of `tokenInAmount` / `tokenOutAmount` | exact output — a **BUY** (ExactOut) |
+| `to` | `string` | no | recipient SPL **token account** for `tokenOut`; defaults to the account's own token account |
 
-## Run them
+`tokenInAmount` and `tokenOutAmount` are mutually exclusive — provide exactly one:
 
-```sh
-npm install
+- **SELL** (`tokenInAmount`) → ExactIn. Uses Jupiter **v2 `/build`** by default (or v1 when
+  `apiVersion: 'v1'`).
+- **BUY** (`tokenOutAmount`) → ExactOut. Always routes through Jupiter **v1**
+  (`swapMode=ExactOut`), since v2 `/build` is ExactIn-only — see [Adapters](#adapters).
+
+Providing neither throws `A swap requires either tokenInAmount (SELL) or tokenOutAmount (BUY).`
+
+> `to` is passed straight to Jupiter as `destinationTokenAccount`, which expects a token
+> account address (not an owner wallet address). Deriving the associated token account from
+> an owner address is a planned enhancement; for now, pass the recipient's SPL token account
+> for `tokenOut`.
+
+## Configuration
+
+`JupiterProtocolConfig` extends the WDK `SwapProtocolConfig` (whose only field is
+`swapMaxFee`) with a documented Jupiter superset. Every field is optional.
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `swapMaxFee` | `number \| bigint` | _none_ | max fee (lamports) for a swap; the only field from the WDK contract. If `fee >= swapMaxFee`, `swap()` throws (see [Fee protection](#fee-protection)). |
+| `slippageBps` | `number` | `50` | slippage tolerance in basis points (50 = 0.5%). |
+| `apiVersion` | `'v2' \| 'v1'` | `'v2'` | adapter for SELL/ExactIn. `'v2'` = `/build`; `'v1'` = the fallback. BUY always uses v1 regardless. |
+| `jupiterBaseUrl` | `string` | _host auto-selected_ | override the Jupiter host. Defaults to the keyless lite host, or the keyed host when `jupiterApiKey` is set. |
+| `jupiterApiKey` | `string` | _none_ | API key for the keyed host (`api.jup.ag`). **Env-only — never hardcode** (e.g. `process.env.JUPITER_API_KEY`). |
+| `computeUnitLimit` | `number` | `1_400_000` | compute-unit limit prepended on v2 (`/build` omits the CU-limit instruction). |
+| `computeUnitPricePercentile` | `number \| string` | _none_ | v2 priority-fee control (`'medium'` / `'high'` / `'veryHigh'`, or `0`–`10000` bps). |
+| `dexes` | `string \| string[]` | _none_ | Jupiter-native route shaping: restrict routing to these DEX labels (e.g. `'Whirlpool'` or `['Whirlpool', 'Raydium']`). |
+| `onlyDirectRoutes` | `boolean` | _none_ | Jupiter-native route shaping: force a single-hop route (no intermediate tokens). |
+
+```js
+// jupiterApiKey is read from the environment, never committed.
+const protocol = new JupiterProtocolSolana(account, {
+  slippageBps: 50,
+  swapMaxFee: 50_000n,
+  jupiterApiKey: process.env.JUPITER_API_KEY
+})
 ```
 
-### Spike A — Bare TLS to Jupiter  (PASS)
-```sh
-npm run spike:a        # = bare spike-a-bare-fetch-tls.cjs
+When `jupiterApiKey` is set, requests go to the keyed host `https://api.jup.ag` with an
+`x-api-key` header; otherwise they go to the keyless `https://lite-api.jup.ag`. An explicit
+`jupiterBaseUrl` overrides both.
+
+## Adapters
+
+Both adapters return the same internal shape (`{ instructions, lookupTables, quote }`) so
+the protocol code is identical regardless of which one runs.
+
+- **v2 — `/swap/v2/build` (default).** One `GET` that returns the quote, the raw
+  instructions, and the Address Lookup Tables **already inlined**
+  (`addressesByLookupTableAddress`), so no RPC fetch is needed. v2 returns only the
+  compute-unit *price* instruction, so the adapter **prepends a `SetComputeUnitLimit`**
+  instruction (`computeUnitLimit`, default `1_400_000`). Used for SELL/ExactIn by default.
+- **v1 — `/swap/v1/quote` + `/swap/v1/swap-instructions` (fallback).** Used when
+  `apiVersion: 'v1'`, and always for **BUY** (`tokenOutAmount`), because v1 is the only path
+  that supports `swapMode=ExactOut`. v1 emits its own CU-limit instruction (via
+  `dynamicComputeUnitLimit`), so the adapter does **not** prepend one. v1 returns only the
+  lookup-table *addresses*, so each table's contents are fetched from the account's RPC.
+
+In both cases the wallet sets the transaction lifetime (blockhash) and fee payer itself —
+the module hands it an unsigned `TransactionMessage` carrying just the compressed
+instruction list.
+
+## Fee protection
+
+If `swapMaxFee` is set in the config, `swap()` quotes the transaction fee first and throws
+before sending when the fee is too high:
+
+```js
+// from src/jupiter-protocol-solana.js
+if (this._config.swapMaxFee !== undefined && fee >= this._config.swapMaxFee) {
+  throw new Error('Exceeded maximum fee cost for swap operation.')
+}
 ```
-- **Must** run under `bare`, not `node` — Node's TLS is not the runtime under
-  test. The script prints whether it actually saw the `Bare` global.
-- The `.cjs` extension is required: the package is `"type": "module"`, so a bare
-  `.js` would be treated as ESM and `require('bare-fetch')` would fail.
-- **PASS:** HTTP 200 + a real `outAmount` + a non-empty `routePlan`.
 
-### Spike B (sim) — ALT/versioned vs live mainnet, no Surfpool needed  (PASS)
+The error string is identical to the velora-evm peer's fee guard. `quoteSwap()` does not
+enforce the cap — it only returns the fee so the caller can decide.
+
+`swap()` also guards its preconditions, mirroring velora:
+
+- a read-only account throws
+  `The 'swap(options)' method requires the protocol to be initialized with a non read-only account.`
+- no provider throws
+  `The wallet must be connected to a provider in order to perform swap operations.`
+  (`quoteSwap()` throws the `quote swap operations.` variant.)
+
+## Testing
+
 ```sh
-npm run spike:b:sim
-# default RPC is solana-rpc.publicnode.com — works from datacenter IPs (unlike
-# api.mainnet-beta.solana.com, which refuses them). Override: SOLANA_RPC=<endpoint>
+npm test
 ```
-- Runs the full build path (Jupiter `/swap-instructions` → `@solana/kit` → fetch
-  ALTs from mainnet → compress → compile v0) and finishes with
-  `simulateTransaction` (`sigVerify:false`, `replaceRecentBlockhash:true`) — $0,
-  no funds, no landing.
-- **PASS:** the sim returns a result (the validator parsed the v0 tx + resolved
-  the ALTs); an `AccountNotFound`/funds error on the throwaway wallet is expected.
 
-### Spike B (full) — landing on a Surfpool fork  (not run here)
-```sh
-# terminal 1: fork mainnet locally — see https://docs.surfpool.run
-surfpool start          # RPC :8899, WS :8900
-# terminal 2:
-npm run spike:b:surfpool
-```
-- Surfpool lazily loads the real Jupiter programs + AMM accounts the swap touches
-  and funds the test wallet with a free local airdrop.
-- **PASS:** a confirmed transaction signature; the wallet's USDT balance on the
-  fork increased.
+Unit tests cover the instruction mapping, both adapters, and the protocol surface (SELL/BUY
+quote + swap, the fee guard, and the read-only / no-provider guards). They mock `fetch` and
+the wallet account — no network or validator needed.
 
-## What was confirmed against the installed packages (2026-05-27)
+An end-to-end test (`tests/e2e/surfpool.e2e.test.js`) runs a **real** WSOL → USDT swap on a
+[Surfpool](https://github.com/txtx/surfpool) mainnet fork and asserts the on-chain USDT
+balance increased. It **auto-skips** when no Solana RPC answers on `SURFPOOL_RPC`
+(default `http://127.0.0.1:8899`), so a plain `npm test` stays green without a validator.
+See [`tests/e2e/README.md`](tests/e2e/README.md) for how to start Surfpool and run it.
 
-1. **`bare-fetch`** — version **3.0.1**; `module.exports = fetch`, so
-   `const fetch = require('bare-fetch')` is correct. `Response` exposes
-   `.ok` / `.status` / `.json()`. It is **Bare-only** (Node `require` throws on
-   `require.addon`) — exactly why Spike A must run under `bare`.
-2. **`@solana/kit@4.0.0` ALT helpers** — all imports used by the spikes exist;
-   `AccountRole = { READONLY:0, WRITABLE:1, READONLY_SIGNER:2, WRITABLE_SIGNER:3 }`;
-   `compressTransactionMessageUsingAddressLookupTables`, `compileTransaction`,
-   `getBase64EncodedWireTransaction` all present.
-3. **ALT package** — `@solana-program/address-lookup-table@0.9.0` is the version
-   whose peer is `@solana/kit@^4.0` (0.7.0 peers ^2, 0.11.0 peers ^6 — both wrong);
-   `fetchAddressLookupTable` present and works against live mainnet.
-4. **Jupiter host** — keyless `lite-api.jup.ag/swap/v1` (`/quote` + `/swap-instructions`)
-   returned a live 200 from both Bare and Node. The keyed host `api.jup.ag` serves the same
-   v1 contract for higher limits; Jupiter's newer Unified Swap **v2** (`api.jup.ag/swap/v2` —
-   `/order`·`/build`·`/execute`) is a different surface, but because the module consumes
-   *raw instructions* and composes the tx itself, the Jupiter source stays behind a thin
-   adapter, not the module's transaction logic.
+## Phase-0 spikes
 
-## Why this is the cheap path
-
-The transaction-build **pipe** in Spike B
-(`createTransactionMessage({ version: 0 })` → `setTransactionMessageFeePayerSigner`
-→ `setTransactionMessageLifetimeUsingBlockhash` →
-`appendTransactionMessageInstructions`) is copied verbatim from the installed
-`@tetherto/wdk-wallet-solana` account source. So a green Spike B means the module
-only has to swap the local `@solana/kit` signer for `account.sendTransaction(message)`
-— the WDK account compiles the **same** v0 message internally. The risky unknowns
-are isolated here, at $0, before the module exists.
+The two binary risks of a Jupiter-based Solana swap module — reaching Jupiter over TLS from
+the Bare runtime, and composing a real Jupiter ALT/versioned route the validator accepts —
+were retired up front with runnable spikes in [`spikes/phase-0/`](spikes/phase-0/) before
+any module code was written. That directory is the de-risking evidence.
 
 ## License
 
-MIT © cryptoyasenka
+Apache-2.0 © cryptoyasenka
