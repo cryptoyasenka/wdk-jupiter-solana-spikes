@@ -15,7 +15,7 @@
  * @param {string} params.taker - the wallet address (signer / fee-payer base).
  * @param {number} [params.slippageBps]
  * @param {string} [params.destinationTokenAccount] - SPL token account for the output (from `to`).
- * @param {Object} cfg - the protocol config (`jupiterBaseUrl`, `jupiterApiKey`, `computeUnitLimit`, `computeUnitPricePercentile`).
+ * @param {Object} cfg - the protocol config (`jupiterBaseUrl`, `jupiterApiKey`, `computeUnitLimit`, `computeUnitPricePercentile`, `timeoutMs`).
  * @returns {Promise<{ instructions: JupiterInstruction[], lookupTables: Record<string, string[]>, quote: Object }>}
  */
 export function buildV2(params: {

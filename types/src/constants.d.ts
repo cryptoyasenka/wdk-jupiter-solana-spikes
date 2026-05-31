@@ -12,3 +12,5 @@ export const COMPUTE_BUDGET_PROGRAM: "ComputeBudget11111111111111111111111111111
 export const DEFAULT_SLIPPAGE_BPS: 50;
 /** Default compute-unit limit prepended on v2 (`/build` omits the CU-limit instruction). */
 export const DEFAULT_COMPUTE_UNIT_LIMIT: 1400000;
+/** Default per-request timeout (ms) for Jupiter HTTP calls, so a hung host can't stall a swap. */
+export const DEFAULT_TIMEOUT_MS: 15000;

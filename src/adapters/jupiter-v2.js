@@ -13,7 +13,7 @@
 // limitations under the License.
 'use strict'
 
-import { JUPITER_HOSTS, DEFAULT_SLIPPAGE_BPS, DEFAULT_COMPUTE_UNIT_LIMIT } from '../constants.js'
+import { JUPITER_HOSTS, DEFAULT_SLIPPAGE_BPS, DEFAULT_COMPUTE_UNIT_LIMIT, DEFAULT_TIMEOUT_MS } from '../constants.js'
 import { setComputeUnitLimitInstruction } from '../instructions.js'
 
 /** @typedef {import('../instructions.js').JupiterInstruction} JupiterInstruction */
@@ -47,7 +47,7 @@ function resolveBaseUrl (cfg) {
  * @param {string} params.taker - the wallet address (signer / fee-payer base).
  * @param {number} [params.slippageBps]
  * @param {string} [params.destinationTokenAccount] - SPL token account for the output (from `to`).
- * @param {Object} cfg - the protocol config (`jupiterBaseUrl`, `jupiterApiKey`, `computeUnitLimit`, `computeUnitPricePercentile`).
+ * @param {Object} cfg - the protocol config (`jupiterBaseUrl`, `jupiterApiKey`, `computeUnitLimit`, `computeUnitPricePercentile`, `timeoutMs`).
  * @returns {Promise<{ instructions: JupiterInstruction[], lookupTables: Record<string, string[]>, quote: Object }>}
  */
 export async function buildV2 (params, cfg = {}) {
@@ -75,7 +75,10 @@ export async function buildV2 (params, cfg = {}) {
   const headers = {}
   if (cfg.jupiterApiKey) headers['x-api-key'] = cfg.jupiterApiKey
 
-  const res = await fetch(`${base}/swap/v2/build?${query.toString()}`, { headers })
+  const res = await fetch(`${base}/swap/v2/build?${query.toString()}`, {
+    headers,
+    signal: AbortSignal.timeout(cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS)
+  })
   if (!res.ok) {
     throw new Error(`Jupiter v2 /build failed: ${res.status} ${await res.text()}`)
   }

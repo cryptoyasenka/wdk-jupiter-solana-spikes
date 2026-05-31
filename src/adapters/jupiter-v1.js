@@ -16,7 +16,7 @@
 import { address } from '@solana/addresses'
 import { fetchAddressLookupTable } from '@solana-program/address-lookup-table'
 
-import { JUPITER_HOSTS, DEFAULT_SLIPPAGE_BPS } from '../constants.js'
+import { JUPITER_HOSTS, DEFAULT_SLIPPAGE_BPS, DEFAULT_TIMEOUT_MS } from '../constants.js'
 
 /** @typedef {import('../instructions.js').JupiterInstruction} JupiterInstruction */
 
@@ -55,6 +55,7 @@ function resolveBaseUrl (cfg) {
 export async function buildV1 (params, cfg = {}, rpc) {
   const base = resolveBaseUrl(cfg)
   const slippageBps = params.slippageBps ?? cfg.slippageBps ?? DEFAULT_SLIPPAGE_BPS
+  const timeoutMs = cfg.timeoutMs ?? DEFAULT_TIMEOUT_MS
 
   const headers = {}
   if (cfg.jupiterApiKey) headers['x-api-key'] = cfg.jupiterApiKey
@@ -71,7 +72,10 @@ export async function buildV1 (params, cfg = {}, rpc) {
   if (cfg.dexes) query.set('dexes', Array.isArray(cfg.dexes) ? cfg.dexes.join(',') : String(cfg.dexes))
   if (cfg.onlyDirectRoutes) query.set('onlyDirectRoutes', 'true')
 
-  const quoteRes = await fetch(`${base}/swap/v1/quote?${query.toString()}`, { headers })
+  const quoteRes = await fetch(`${base}/swap/v1/quote?${query.toString()}`, {
+    headers,
+    signal: AbortSignal.timeout(timeoutMs)
+  })
   if (!quoteRes.ok) {
     throw new Error(`Jupiter v1 /quote failed: ${quoteRes.status} ${await quoteRes.text()}`)
   }
@@ -88,7 +92,8 @@ export async function buildV1 (params, cfg = {}, rpc) {
   const ixRes = await fetch(`${base}/swap/v1/swap-instructions`, {
     method: 'POST',
     headers: { ...headers, 'content-type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(timeoutMs)
   })
   if (!ixRes.ok) {
     throw new Error(`Jupiter v1 /swap-instructions failed: ${ixRes.status} ${await ixRes.text()}`)

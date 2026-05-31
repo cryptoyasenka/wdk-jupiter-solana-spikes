@@ -12,8 +12,22 @@
   ],
   "author": "cryptoyasenka",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cryptoyasenka/wdk-jupiter-solana-spikes.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cryptoyasenka/wdk-jupiter-solana-spikes/issues"
+  },
+  "homepage": "https://github.com/cryptoyasenka/wdk-jupiter-solana-spikes#readme",
   "type": "module",
   "main": "index.js",
+  "files": [
+    "index.js",
+    "bare.js",
+    "src",
+    "types"
+  ],
   "scripts": {
     "build:types": "tsc",
     "lint": "standard",

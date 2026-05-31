@@ -33,6 +33,7 @@ import { buildSwapMessage } from './message.js'
  * @property {'v2' | 'v1'} [apiVersion='v2'] - default adapter. v2 `/build` (ExactIn). BUY auto-routes to v1 ExactOut.
  * @property {string} [jupiterBaseUrl] - override the Jupiter host (defaults: keyless lite, or keyed when a key is set).
  * @property {string} [jupiterApiKey] - API key for the keyed host. ENV-ONLY; never hardcode (e.g. `process.env.JUPITER_API_KEY`).
+ * @property {number} [timeoutMs=15000] - per-request timeout (ms) for Jupiter HTTP calls; a hung host aborts instead of stalling the swap.
  * @property {number} [computeUnitLimit=1400000] - CU limit prepended on v2 (`/build` omits it).
  * @property {number | string} [computeUnitPricePercentile] - v2 priority-fee control ('medium'/'high'/'veryHigh' or 0-10000 bps).
  * @property {string | string[]} [dexes] - Jupiter-native route shaping: restrict routing to these DEX labels (e.g. `'Whirlpool'` or `['Whirlpool','Raydium']`).

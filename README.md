@@ -118,6 +118,7 @@ Providing neither throws `A swap requires either tokenInAmount (SELL) or tokenOu
 | `apiVersion` | `'v2' \| 'v1'` | `'v2'` | adapter for SELL/ExactIn. `'v2'` = `/build`; `'v1'` = the fallback. BUY always uses v1 regardless. |
 | `jupiterBaseUrl` | `string` | _host auto-selected_ | override the Jupiter host. Defaults to the keyless lite host, or the keyed host when `jupiterApiKey` is set. |
 | `jupiterApiKey` | `string` | _none_ | API key for the keyed host (`api.jup.ag`). **Env-only — never hardcode** (e.g. `process.env.JUPITER_API_KEY`). |
+| `timeoutMs` | `number` | `15000` | per-request timeout for Jupiter HTTP calls; a hung host aborts the `fetch` instead of stalling `swap()` / `quoteSwap()`. |
 | `computeUnitLimit` | `number` | `1_400_000` | compute-unit limit prepended on v2 (`/build` omits the CU-limit instruction). |
 | `computeUnitPricePercentile` | `number \| string` | _none_ | v2 priority-fee control (`'medium'` / `'high'` / `'veryHigh'`, or `0`–`10000` bps). |
 | `dexes` | `string \| string[]` | _none_ | Jupiter-native route shaping: restrict routing to these DEX labels (e.g. `'Whirlpool'` or `['Whirlpool', 'Raydium']`). |

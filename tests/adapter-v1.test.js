@@ -107,4 +107,14 @@ describe('buildV1', () => {
     expect(String(url)).toContain('swapMode=ExactOut')
     expect(String(url)).toContain('restrictIntermediateTokens=true')
   })
+
+  test('passes an AbortSignal timeout to both fetches (default 15000ms)', async () => {
+    const spy = jest.spyOn(AbortSignal, 'timeout')
+    await buildV1(PARAMS, {}, FAKE_RPC)
+    expect(spy).toHaveBeenCalledWith(15000)
+    const [, init0] = global.fetch.mock.calls[0]
+    const [, init1] = global.fetch.mock.calls[1]
+    expect(init0.signal).toBeInstanceOf(AbortSignal)
+    expect(init1.signal).toBeInstanceOf(AbortSignal)
+  })
 })

@@ -109,4 +109,18 @@ describe('buildV2', () => {
     global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 400, text: async () => 'bad request' })
     await expect(buildV2(PARAMS, {})).rejects.toThrow('Jupiter v2 /build failed: 400')
   })
+
+  test('passes an AbortSignal timeout to fetch (default 15000ms)', async () => {
+    const spy = jest.spyOn(AbortSignal, 'timeout')
+    await buildV2(PARAMS, {})
+    expect(spy).toHaveBeenCalledWith(15000)
+    const [, init] = global.fetch.mock.calls[0]
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  test('honors a custom timeoutMs', async () => {
+    const spy = jest.spyOn(AbortSignal, 'timeout')
+    await buildV2(PARAMS, { timeoutMs: 1234 })
+    expect(spy).toHaveBeenCalledWith(1234)
+  })
 })
