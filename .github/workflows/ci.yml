@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    name: Node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      # --ignore-scripts matches how deps are installed locally (supply-chain hygiene):
+      # the @tetherto / @solana deps have no build step we need to run.
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      # The e2e suite auto-skips when no Surfpool RPC answers on 127.0.0.1:8899
+      # (reachability gate in tests/e2e/surfpool.e2e.test.js), so CI needs no validator.
+      - run: npm test
+      # Non-blocking: the module deliberately depends on first-party @tetherto/...@beta
+      # packages, and a transitive beta advisory must not red the build. Surfaced, not gating.
+      - run: npm audit --omit=dev
+        continue-on-error: true
