@@ -137,18 +137,48 @@ async function main () {
   console.log('[spike-b-sim] logs (tail)   :')
   for (const l of (v.logs || []).slice(-12)) console.log('   ', l)
 
-  // The de-risk: the validator PARSED the versioned tx and RESOLVED the ALTs
-  // (otherwise the error would be a deserialize / "AddressLookupTable not found"
-  // / account-lock failure, and the wire tx would not have compiled at all).
-  // An "AccountNotFound" / funds-type err on an unfunded throwaway wallet is the
-  // EXPECTED outcome and is exactly what Surfpool's airdrop removes.
-  const altPathProven = v.err !== 'BlockhashNotFound' // any execution-stage err still proves parse+ALT-resolve
-  console.log('\n[spike-b-sim] PASS (structural) — validator parsed the v0 tx and RESOLVED the ALTs.')
-  console.log('[spike-b-sim] PROVEN free, vs real mainnet state: Jupiter instr -> @solana/kit mapping,')
-  console.log('[spike-b-sim] ALT fetch, ALT compression, v0 compile, validator parse + ALT resolution.')
-  console.log('[spike-b-sim] NOT proven here (needs Surfpool airdrop): full program execution + landing')
-  console.log('[spike-b-sim] + real USDT balance delta -> run spike-b-alt-route-surfpool.mjs on a fork.')
-  if (!altPathProven) console.warn('[spike-b-sim] note: only blockhash err seen — rerun for a cleaner signal.')
+  // De-risk classification (audit finding #4: the old `v.err !== 'BlockhashNotFound'`
+  // printed PASS for almost any error). The wire tx already COMPILED (parse + ALT
+  // compression OK). To PASS we now require the validator to have GENUINELY exercised
+  // the versioned/ALT path:
+  //   1. ALTs must actually be present (>0 tables AND >0 entries) — else this proves
+  //      nothing about lookup tables; and
+  //   2. the error must NOT be a deserialize / ALT-resolution / sanitize failure (those
+  //      mean the exact path we de-risk is broken).
+  // An account-loading / funds err (e.g. AccountNotFound) on an unfunded throwaway wallet
+  // means parse + ALT-resolution + account loading were all REACHED — which is what
+  // Surfpool's airdrop turns into a real landing. It does NOT prove program execution,
+  // and we say so explicitly below unless logs/CU are present.
+  const altTableCount = Object.keys(lookupTables).length
+  const altEntryCount = Object.values(lookupTables).reduce((n, x) => n + x.length, 0)
+  const errName = v.err == null ? null : (typeof v.err === 'string' ? v.err : Object.keys(v.err)[0])
+  const PATH_BROKEN = [
+    'BlockhashNotFound', 'SanitizeFailure', 'AddressLookupTableNotFound',
+    'InvalidAddressLookupTableData', 'InvalidAddressLookupTableIndex',
+    'InvalidAddressLookupTableOwner', 'TooManyAccountLocks'
+  ]
+  const pathBroken = PATH_BROKEN.includes(errName)
+  const executed = Number(v.unitsConsumed || 0) > 0 || (v.logs && v.logs.length > 0)
+  const altPathProven = altTableCount > 0 && altEntryCount > 0 && !pathBroken
+
+  if (!altPathProven) {
+    console.error('\n[spike-b-sim] FAIL — versioned/ALT path NOT proven.')
+    console.error(`[spike-b-sim]   altTables=${altTableCount} altEntries=${altEntryCount} err=${JSON.stringify(v.err)}`)
+    console.error('[spike-b-sim]   A deserialize / AddressLookupTable* / SanitizeFailure / BlockhashNotFound error means')
+    console.error('[spike-b-sim]   the path we de-risk is broken — fix before building the M2 module.')
+    process.exit(1)
+  }
+
+  console.log(`\n[spike-b-sim] PASS (structural) — validator PARSED the v0 tx, RESOLVED ${altTableCount} ALT(s) / ${altEntryCount} entries, and reached account loading.`)
+  if (executed) {
+    console.log(`[spike-b-sim] + program execution OBSERVED (unitsConsumed=${v.unitsConsumed}, ${(v.logs || []).length} log lines).`)
+  } else {
+    console.log(`[spike-b-sim] NOT proven here: program EXECUTION (unitsConsumed=${v.unitsConsumed}, no logs; err=${JSON.stringify(v.err)} is the EXPECTED account-loading outcome on an unfunded throwaway wallet).`)
+  }
+  console.log('[spike-b-sim] PROVEN free, vs real mainnet state: Jupiter instr -> @solana/kit mapping, ALT')
+  console.log('[spike-b-sim] fetch, ALT compression, v0 compile, validator parse + ALT resolution + account loading.')
+  console.log('[spike-b-sim] NOT proven here (needs Surfpool airdrop): full program execution + landing + real')
+  console.log('[spike-b-sim] USDT balance delta -> run the Surfpool E2E (spikes/phase-0 or test/e2e).')
 }
 
 main().catch((err) => {
