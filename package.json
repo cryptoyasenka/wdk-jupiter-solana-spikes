@@ -69,6 +69,11 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
+  "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.js"
+    ]
+  },
   "standard": {
     "ignore": [
       "bare.js",

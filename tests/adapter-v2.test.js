@@ -177,4 +177,11 @@ describe('buildV2', () => {
     expect(out.instructions[1]).toEqual(minimal.swapInstruction)
     expect(out.lookupTables).toEqual({})
   })
+
+  test('defaults cfg to {} when called with no config arg (default-param branch)', async () => {
+    const out = await buildV2(PARAMS)
+    expect(out).toHaveProperty('instructions')
+    // keyless default -> lite host
+    expect(String(global.fetch.mock.calls[0][0])).toContain('lite-api.jup.ag')
+  })
 })

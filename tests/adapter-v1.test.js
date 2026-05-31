@@ -189,4 +189,10 @@ describe('buildV1', () => {
     expect(out.lookupTables).toEqual({})
     expect(fetchAltMock).not.toHaveBeenCalled()
   })
+
+  test('defaults cfg to {} when called with cfg=undefined (default-param branch)', async () => {
+    const out = await buildV1(PARAMS, undefined, FAKE_RPC)
+    expect(out).toHaveProperty('instructions')
+    expect(String(global.fetch.mock.calls[0][0])).toContain('/swap/v1/quote')
+  })
 })

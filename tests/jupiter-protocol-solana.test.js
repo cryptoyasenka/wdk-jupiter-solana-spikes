@@ -214,3 +214,37 @@ describe('JupiterProtocolSolana — SELL routes to v1 when apiVersion=v1', () =>
     expect(params.swapMode).toBeUndefined()
   })
 })
+
+describe('JupiterProtocolSolana — _getRpc resolution + default config', () => {
+  beforeEach(() => {
+    buildV2Mock.mockClear()
+    buildV1Mock.mockClear()
+  })
+
+  test('constructs with no config arg (config defaults to {})', async () => {
+    const account = makeAccount()
+    const protocol = new JupiterProtocolSolana(account)
+    const out = await protocol.quoteSwap(SELL_OPTIONS)
+    expect(buildV2Mock).toHaveBeenCalledTimes(1)
+    expect(out.tokenInAmount).toBe(100000000n)
+  })
+
+  test('reuses the account live _rpc for v1 ALT fetches when present', async () => {
+    const account = makeAccount()
+    const sentinelRpc = { _sentinel: 'live-rpc' }
+    account._rpc = sentinelRpc
+    const protocol = new JupiterProtocolSolana(account, {})
+    await protocol.quoteSwap(BUY_OPTIONS) // BUY -> v1, calls _getRpc()
+    expect(buildV1Mock).toHaveBeenCalledTimes(1)
+    // _getRpc short-circuits to the account's live rpc instead of building one
+    expect(buildV1Mock.mock.calls[0][2]).toBe(sentinelRpc)
+  })
+
+  test('builds an RPC from the first provider when the provider is an array', async () => {
+    const account = new MockWalletAccountSolana({ provider: ['https://rpc-a.example', 'https://rpc-b.example'] })
+    const protocol = new JupiterProtocolSolana(account, {})
+    await protocol.quoteSwap(BUY_OPTIONS) // BUY -> v1, no live _rpc -> builds from provider[0]
+    expect(buildV1Mock).toHaveBeenCalledTimes(1)
+    expect(buildV1Mock.mock.calls[0][2]).toBeDefined()
+  })
+})
