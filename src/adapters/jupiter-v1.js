@@ -67,6 +67,9 @@ export async function buildV1 (params, cfg = {}, rpc) {
     restrictIntermediateTokens: 'true'
   })
   if (params.swapMode) query.set('swapMode', params.swapMode)
+  // Optional route shaping (Jupiter-native): mirror v2 so the fallback honors the same config.
+  if (cfg.dexes) query.set('dexes', Array.isArray(cfg.dexes) ? cfg.dexes.join(',') : String(cfg.dexes))
+  if (cfg.onlyDirectRoutes) query.set('onlyDirectRoutes', 'true')
 
   const quoteRes = await fetch(`${base}/swap/v1/quote?${query.toString()}`, { headers })
   if (!quoteRes.ok) {

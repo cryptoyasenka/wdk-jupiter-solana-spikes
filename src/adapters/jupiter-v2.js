@@ -67,6 +67,10 @@ export async function buildV2 (params, cfg = {}) {
   if (params.destinationTokenAccount) {
     query.set('destinationTokenAccount', params.destinationTokenAccount)
   }
+  // Optional route shaping (Jupiter-native): restrict the DEXes considered and/or force a
+  // single-hop route. Useful to keep a swap on a specific venue / smaller account set.
+  if (cfg.dexes) query.set('dexes', Array.isArray(cfg.dexes) ? cfg.dexes.join(',') : String(cfg.dexes))
+  if (cfg.onlyDirectRoutes) query.set('onlyDirectRoutes', 'true')
 
   const headers = {}
   if (cfg.jupiterApiKey) headers['x-api-key'] = cfg.jupiterApiKey

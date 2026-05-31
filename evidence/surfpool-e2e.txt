@@ -1,0 +1,14 @@
+Surfpool E2E — real WSOL->USDT swap (DESIGN §4c: feePayer/lifetime applied AFTER ALT compression still lands)
+timestamp:   2026-05-31T02:01:38.024Z
+rpc:         http://127.0.0.1:8899
+wallet:      73VYkYCmmM3XVTm7FwS1dHWsqr8kTe3yBfDfTWLjppxu
+route:       dexes=Whirlpool onlyDirectRoutes (single hop)
+tx hash:     5sNouyVBGzePJa5oBQNo72VCnrMJxDJs4xuxLLBJ6yoy56kjb58J6No5yM1U9m9887Ldc3HPUyGAszfibgxDQH2F
+slot:        423279426
+amount in:   10000000 (WSOL base units)
+quote out:   823149 (USDT base units)
+pre  USDT:   0
+post USDT:   831049
+delta:       +831049
+fee:         5000
+adapter:     v2 /build (ExactIn SELL, default path)

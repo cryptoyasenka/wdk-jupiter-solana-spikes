@@ -5,3 +5,6 @@ package-lock.json
 
 bounty-audit-report.html
 .planning/
+
+# Local E2E tooling: the Surfpool binary/tarball + throwaway probes (never committed).
+.tools/

@@ -35,6 +35,8 @@ import { buildSwapMessage } from './message.js'
  * @property {string} [jupiterApiKey] - API key for the keyed host. ENV-ONLY; never hardcode (e.g. `process.env.JUPITER_API_KEY`).
  * @property {number} [computeUnitLimit=1400000] - CU limit prepended on v2 (`/build` omits it).
  * @property {number | string} [computeUnitPricePercentile] - v2 priority-fee control ('medium'/'high'/'veryHigh' or 0-10000 bps).
+ * @property {string | string[]} [dexes] - Jupiter-native route shaping: restrict routing to these DEX labels (e.g. `'Whirlpool'` or `['Whirlpool','Raydium']`).
+ * @property {boolean} [onlyDirectRoutes] - Jupiter-native route shaping: force a single-hop route (no intermediate tokens).
  */
 
 /**
