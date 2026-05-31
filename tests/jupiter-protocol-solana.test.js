@@ -196,3 +196,21 @@ describe('JupiterProtocolSolana — _getSwapMessage param mapping', () => {
     )
   })
 })
+
+describe('JupiterProtocolSolana — SELL routes to v1 when apiVersion=v1', () => {
+  beforeEach(() => {
+    buildV2Mock.mockClear()
+    buildV1Mock.mockClear()
+  })
+
+  test('configured apiVersion v1 sends SELL (ExactIn) through buildV1, not buildV2', async () => {
+    const account = makeAccount()
+    const protocol = new JupiterProtocolSolana(account, { apiVersion: 'v1' })
+    await protocol.quoteSwap(SELL_OPTIONS)
+    expect(buildV1Mock).toHaveBeenCalledTimes(1)
+    expect(buildV2Mock).not.toHaveBeenCalled()
+    const [params] = buildV1Mock.mock.calls[0]
+    expect(params.amount).toBe(100_000_000n)
+    expect(params.swapMode).toBeUndefined()
+  })
+})

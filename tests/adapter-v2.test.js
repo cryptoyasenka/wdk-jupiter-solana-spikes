@@ -123,4 +123,21 @@ describe('buildV2', () => {
     await buildV2(PARAMS, { timeoutMs: 1234 })
     expect(spy).toHaveBeenCalledWith(1234)
   })
+
+  test('sets computeUnitPricePercentile (cfg) and destinationTokenAccount (params) in the query', async () => {
+    await buildV2(
+      { ...PARAMS, destinationTokenAccount: 'DestTokenAcct1111111111111111111111111111111' },
+      { computeUnitPricePercentile: 25 }
+    )
+    const [url] = global.fetch.mock.calls[0]
+    expect(String(url)).toContain('computeUnitPricePercentile=25')
+    expect(String(url)).toContain('destinationTokenAccount=DestTokenAcct1111111111111111111111111111111')
+  })
+
+  test('applies route-shaping (dexes array + onlyDirectRoutes) to the query', async () => {
+    await buildV2(PARAMS, { dexes: ['Whirlpool', 'Raydium'], onlyDirectRoutes: true })
+    const [url] = global.fetch.mock.calls[0]
+    expect(String(url)).toContain('dexes=Whirlpool%2CRaydium')
+    expect(String(url)).toContain('onlyDirectRoutes=true')
+  })
 })

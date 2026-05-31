@@ -117,4 +117,29 @@ describe('buildV1', () => {
     expect(init0.signal).toBeInstanceOf(AbortSignal)
     expect(init1.signal).toBeInstanceOf(AbortSignal)
   })
+
+  test('throws when /quote responds non-ok', async () => {
+    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500, text: async () => 'rate limited' })
+    await expect(buildV1(PARAMS, {}, FAKE_RPC)).rejects.toThrow('Jupiter v1 /quote failed: 500')
+  })
+
+  test('throws when /swap-instructions responds non-ok', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce(res(quoteFixture))
+      .mockResolvedValueOnce({ ok: false, status: 422, text: async () => 'bad quote' })
+    await expect(buildV1(PARAMS, {}, FAKE_RPC)).rejects.toThrow('Jupiter v1 /swap-instructions failed: 422')
+  })
+
+  test('applies route-shaping + destinationTokenAccount (v1 parity with v2)', async () => {
+    await buildV1(
+      { ...PARAMS, destinationTokenAccount: 'DestTokenAcct1111111111111111111111111111111' },
+      { dexes: 'Whirlpool', onlyDirectRoutes: true },
+      FAKE_RPC
+    )
+    const [quoteUrl] = global.fetch.mock.calls[0]
+    expect(String(quoteUrl)).toContain('dexes=Whirlpool')
+    expect(String(quoteUrl)).toContain('onlyDirectRoutes=true')
+    const [, ixInit] = global.fetch.mock.calls[1]
+    expect(JSON.parse(ixInit.body).destinationTokenAccount).toBe('DestTokenAcct1111111111111111111111111111111')
+  })
 })
