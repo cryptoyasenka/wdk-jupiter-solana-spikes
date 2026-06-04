@@ -24,6 +24,11 @@ jobs:
       # The e2e suite auto-skips when no Surfpool RPC answers on 127.0.0.1:8899
       # (reachability gate in tests/e2e/surfpool.e2e.test.js), so CI needs no validator.
       - run: npm test
+      # Guard the PUBLISHED declaration surface: build types/, then compile a strict
+      # downstream consumer (typecheck/) against them. Regression guard for the
+      # abstract-override that tsc's declaration emit silently drops (TS2654).
+      - run: npm run build:types
+      - run: npx tsc -p typecheck/tsconfig.json
       # Non-blocking: the module deliberately depends on first-party @tetherto/...@beta
       # packages, and a transitive beta advisory must not red the build. Surfaced, not gating.
       - run: npm audit --omit=dev

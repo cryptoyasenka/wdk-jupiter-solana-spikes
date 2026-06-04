@@ -29,7 +29,7 @@
     "types"
   ],
   "scripts": {
-    "build:types": "tsc",
+    "build:types": "tsc && node scripts/patch-types.mjs",
     "lint": "standard",
     "lint:fix": "standard --fix",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",

@@ -38,6 +38,18 @@ export default class JupiterProtocolSolana extends SwapProtocol {
      */
     constructor(account: import("@tetherto/wdk-wallet-solana").WalletAccountReadOnlySolana | import("@tetherto/wdk-wallet-solana").WalletAccountSolana, config?: JupiterProtocolConfig);
     /**
+     * Quote a swap without sending it.
+     * @param {SwapOptions} options
+     * @returns {Promise<Omit<SwapResult, 'hash'>>} `{ fee, tokenInAmount, tokenOutAmount }` (all bigint).
+     */
+    quoteSwap(options: SwapOptions): Promise<Omit<SwapResult, "hash">>;
+    /**
+     * Build, fee-guard, and send a swap transaction.
+     * @param {SwapOptions} options
+     * @returns {Promise<SwapResult>} `{ hash, fee, tokenInAmount, tokenOutAmount }`.
+     */
+    swap(options: SwapOptions): Promise<SwapResult>;
+    /**
      * Resolve the RPC client used for v1 ALT fetches: reuse the account's live RPC when
      * present (same endpoint we broadcast through), else build one from its provider URL.
      *
