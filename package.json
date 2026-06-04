@@ -51,6 +51,7 @@
     "@solana/kit": "4.0.0",
     "bare": "1.28.5",
     "bare-fetch": "3.0.1",
+    "bip39": "3.1.0",
     "cross-env": "10.0.0",
     "jest": "30.0.5",
     "standard": "17.1.2",
