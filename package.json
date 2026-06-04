@@ -43,6 +43,7 @@
     "@tetherto/wdk-wallet-solana": "1.0.0-beta.9",
     "@solana/addresses": "3.0.3",
     "@solana/instructions": "3.0.3",
+    "@solana/rpc": "3.0.3",
     "@solana/transaction-messages": "3.0.3",
     "@solana-program/address-lookup-table": "0.9.0"
   },
