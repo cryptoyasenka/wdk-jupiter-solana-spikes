@@ -100,6 +100,7 @@ through the account, and returns the (quoted) fee alongside the on-chain `hash`.
   (`swapMode=ExactOut`), since v2 `/build` is ExactIn-only — see [Adapters](#adapters).
 
 Providing neither throws `A swap requires either tokenInAmount (SELL) or tokenOutAmount (BUY).`
+Providing both throws `A swap requires exactly one of tokenInAmount (SELL) or tokenOutAmount (BUY), not both.`
 
 > `to` is passed straight to Jupiter as `destinationTokenAccount`, which expects a token
 > account address (not an owner wallet address). Deriving the associated token account from

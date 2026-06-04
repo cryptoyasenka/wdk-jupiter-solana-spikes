@@ -195,6 +195,16 @@ describe('JupiterProtocolSolana — _getSwapMessage param mapping', () => {
       'A swap requires either tokenInAmount (SELL) or tokenOutAmount (BUY).'
     )
   })
+
+  test('throws when BOTH tokenInAmount and tokenOutAmount are provided (no adapter call)', async () => {
+    const account = makeAccount()
+    const protocol = new JupiterProtocolSolana(account, {})
+    await expect(protocol.quoteSwap({ ...SELL_OPTIONS, tokenOutAmount: 8_231_846n })).rejects.toThrow(
+      'A swap requires exactly one of tokenInAmount (SELL) or tokenOutAmount (BUY), not both.'
+    )
+    expect(buildV2Mock).not.toHaveBeenCalled()
+    expect(buildV1Mock).not.toHaveBeenCalled()
+  })
 })
 
 describe('JupiterProtocolSolana — SELL routes to v1 when apiVersion=v1', () => {

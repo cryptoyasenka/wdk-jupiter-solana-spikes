@@ -137,6 +137,12 @@ export default class JupiterProtocolSolana extends SwapProtocol {
     const { tokenIn, tokenOut, tokenInAmount, tokenOutAmount, to } = options
     const taker = await this._account.getAddress()
 
+    const hasIn = tokenInAmount !== undefined && tokenInAmount !== null
+    const hasOut = tokenOutAmount !== undefined && tokenOutAmount !== null
+    if (hasIn && hasOut) {
+      throw new Error('A swap requires exactly one of tokenInAmount (SELL) or tokenOutAmount (BUY), not both.')
+    }
+
     const params = {
       inputMint: tokenIn,
       outputMint: tokenOut,
@@ -146,13 +152,13 @@ export default class JupiterProtocolSolana extends SwapProtocol {
     }
 
     let adapter
-    if (tokenInAmount !== undefined && tokenInAmount !== null) {
+    if (hasIn) {
       // SELL — ExactIn. v2 by default; v1 when configured.
       params.amount = tokenInAmount
       adapter = (this._config.apiVersion === 'v1')
         ? (p, c) => buildV1(p, c, this._getRpc())
         : buildV2
-    } else if (tokenOutAmount !== undefined && tokenOutAmount !== null) {
+    } else if (hasOut) {
       // BUY — ExactOut. Only v1 supports it; always route to v1.
       params.amount = tokenOutAmount
       params.swapMode = 'ExactOut'
