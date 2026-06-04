@@ -1,8 +1,8 @@
 # wdk-protocol-swap-jupiter-solana
 
-A Solana swap protocol for [Tether's WDK](https://docs.wdk.tether.io): lets a
+A Solana swap protocol for [Tether's WDK](https://docs.wallet.tether.io): lets a
 `@tetherto/wdk-wallet-solana` wallet account swap SPL tokens through the
-[Jupiter](https://dev.jup.ag) aggregator. The Solana peer of the official EVM swap
+[Jupiter](https://developers.jup.ag) aggregator. The Solana peer of the official EVM swap
 module [`@tetherto/wdk-protocol-swap-velora-evm`](https://github.com/tetherto/wdk-protocol-swap-velora-evm) —
 same `swap(options)` / `quoteSwap(options)` surface, same
 `{ hash, fee, tokenInAmount, tokenOutAmount }` returns.
@@ -135,8 +135,18 @@ const protocol = new JupiterProtocolSolana(account, {
 ```
 
 When `jupiterApiKey` is set, requests go to the keyed host `https://api.jup.ag` with an
-`x-api-key` header; otherwise they go to the keyless `https://lite-api.jup.ag`. An explicit
-`jupiterBaseUrl` overrides both.
+`x-api-key` header; otherwise they go to the keyless Lite host `https://lite-api.jup.ag`. An
+explicit `jupiterBaseUrl` overrides both.
+
+A note on the Lite host: Jupiter has announced that `lite-api.jup.ag` is being deprecated.
+The original 2026-01-31 cutoff was postponed and a new date has not yet been announced, and
+the `/swap/v2/build` path now returns a `301` redirect to `api.jup.ag`. As of June 2026,
+`api.jup.ag` still serves these build requests without an API key, and Jupiter's docs now
+point free users to a free API key. The module already supports this path through the
+optional, environment-supplied `jupiterApiKey`, sent as the `x-api-key` header only when
+set, so moving to the keyed host needs no interface change; the final production endpoint is
+selected in M2. The developer docs now live at `developers.jup.ag` (formerly `dev.jup.ag` /
+`portal.jup.ag`).
 
 ## Adapters
 

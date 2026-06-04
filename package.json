@@ -48,6 +48,8 @@
     "@solana-program/address-lookup-table": "0.9.0"
   },
   "devDependencies": {
+    "@emnapi/core": "1.10.0",
+    "@emnapi/runtime": "1.10.0",
     "@solana/kit": "4.0.0",
     "bare": "1.28.5",
     "bare-fetch": "3.0.1",
