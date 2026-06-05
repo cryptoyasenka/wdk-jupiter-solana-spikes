@@ -14,12 +14,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cryptoyasenka/wdk-jupiter-solana-spikes.git"
+    "url": "git+https://github.com/cryptoyasenka/wdk-protocol-swap-jupiter-solana.git"
   },
   "bugs": {
-    "url": "https://github.com/cryptoyasenka/wdk-jupiter-solana-spikes/issues"
+    "url": "https://github.com/cryptoyasenka/wdk-protocol-swap-jupiter-solana/issues"
   },
-  "homepage": "https://github.com/cryptoyasenka/wdk-jupiter-solana-spikes#readme",
+  "homepage": "https://github.com/cryptoyasenka/wdk-protocol-swap-jupiter-solana#readme",
   "type": "module",
   "main": "index.js",
   "files": [
