@@ -1,0 +1,17 @@
+# Cross-platform line endings: keep everything LF in the repo (CI runs on Linux and the
+# tree is already LF, so this rewrites no blobs). Stops Windows-built files from showing
+# as locally modified.
+* text=auto eol=lf
+
+# Generated TypeScript declarations: Windows `tsc` (build:types) emits CRLF, so force LF
+# here — the committed types never show up as modified after a local build.
+*.d.ts text eol=lf
+
+# Binary assets (none tracked today) — guard any future files from text/EOL munging.
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.pdf  binary
+*.wasm binary
