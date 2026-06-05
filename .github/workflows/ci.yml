@@ -43,9 +43,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      # `bare` ships as a devDependency, so npm ci installs the runtime to node_modules/.bin
-      # — `npm run` puts it on PATH for brittle-bare. --ignore-scripts matches the Node job.
+      # --ignore-scripts matches the Node job (supply-chain hygiene).
       - run: npm ci --ignore-scripts
+      # The `bare` runtime binary is fetched by a postinstall that --ignore-scripts skips,
+      # so install the runtime explicitly (pinned to the `bare` devDependency version)
+      # to put `bare` on PATH for brittle-bare.
+      - run: npm i -g bare@1.28.5
       # Runtime portability proof: the pure-logic test files (instruction mapping + v0
       # message build, exercising the @solana primitives) run unchanged on Bare. The
       # fetch/wallet-driven files stay Node-only (they need node: builtins + WDK crypto).
