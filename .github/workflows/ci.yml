@@ -33,3 +33,20 @@ jobs:
       # packages, and a transitive beta advisory must not red the build. Surfaced, not gating.
       - run: npm audit --omit=dev
         continue-on-error: true
+
+  bare:
+    runs-on: ubuntu-latest
+    name: Bare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # `bare` ships as a devDependency, so npm ci installs the runtime to node_modules/.bin
+      # — `npm run` puts it on PATH for brittle-bare. --ignore-scripts matches the Node job.
+      - run: npm ci --ignore-scripts
+      # Runtime portability proof: the pure-logic test files (instruction mapping + v0
+      # message build, exercising the @solana primitives) run unchanged on Bare. The
+      # fetch/wallet-driven files stay Node-only (they need node: builtins + WDK crypto).
+      - run: npm run test:bare

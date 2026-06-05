@@ -193,17 +193,31 @@ enforce the cap. It only returns the fee so the caller can decide.
 
 ## Testing
 
+Tests use [`brittle`](https://github.com/holepunchto/brittle) (tape-style), so the same
+suite runs on both Node and the [Bare](https://github.com/holepunchto/bare) runtime.
+
 ```sh
-npm test
+npm test            # brittle-node — full unit suite (+ the e2e, which auto-skips)
+npm run test:coverage   # same, with the built-in coverage report
+npm run test:bare   # brittle-bare — the runtime-portable pure-logic files
 ```
 
 Unit tests cover the instruction mapping, both adapters, and the protocol surface (SELL/BUY
-quote + swap, the fee guard, and the read-only / no-provider guards). They mock `fetch` and
-the wallet account; no network or validator needed.
+quote + swap, the fee guard, and the read-only / no-provider guards). No network or validator
+is needed: `fetch` is stubbed (restored per test via `t.teardown`) and the **real** adapters,
+message builder, and ALT decoder run against fixtures — the wallet account is a real-prototype
+object (`Object.create(WalletAccountSolana.prototype)`) with its I/O methods stubbed, so the
+production `instanceof` guard still sees the genuine type. Coverage is 100% on every `src/`
+file.
 
-An end-to-end test (`tests/e2e/surfpool.e2e.test.js`) runs a **real** WSOL → USDT swap on a
-[Surfpool](https://github.com/txtx/surfpool) mainnet fork and asserts the on-chain USDT
-balance increased. It **auto-skips** when no Solana RPC answers on `SURFPOOL_RPC`
+`npm run test:bare` runs the two pure-logic files (instruction mapping + v0 message build,
+exercising the `@solana/*` primitives) unchanged on Bare, proving runtime portability. The
+fetch/wallet-driven files stay Node-only — they need `node:` builtins (fixture loading) and
+the WDK wallet's Node crypto.
+
+An end-to-end test (`tests/e2e/surfpool.e2e.test.js`, Node only) runs a **real** WSOL → USDT
+swap on a [Surfpool](https://github.com/txtx/surfpool) mainnet fork and asserts the on-chain
+USDT balance increased. It **auto-skips** when no Solana RPC answers on `SURFPOOL_RPC`
 (default `http://127.0.0.1:8899`), so a plain `npm test` stays green without a validator.
 See [`tests/e2e/README.md`](tests/e2e/README.md) for how to start Surfpool and run it.
 
