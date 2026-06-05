@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, jest, test } from '@jest/globals'
+import test from 'brittle'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -17,171 +17,202 @@ const PARAMS = {
   slippageBps: 50
 }
 
-function mockFetchOk (body) {
-  return jest.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => body,
-    text: async () => JSON.stringify(body)
-  })
+// Brittle has no built-in mocking. We replace jest's `global.fetch` mock + `jest.spyOn`
+// with a hand-rolled fetch stub that records every call, plus an AbortSignal.timeout spy.
+// `setup(t)` stands in for jest's beforeEach and registers restore via t.teardown.
+function makeResponse (body, { ok = true, status = 200 } = {}) {
+  return { ok, status, json: async () => body, text: async () => JSON.stringify(body) }
 }
 
-describe('buildV2', () => {
-  beforeEach(() => {
-    global.fetch = mockFetchOk(fixture)
-  })
-  afterEach(() => {
-    jest.restoreAllMocks()
-    delete global.fetch
+function setup (t, handler) {
+  const calls = []
+  const origFetch = globalThis.fetch
+  globalThis.fetch = async (url, init) => {
+    calls.push([url, init])
+    return handler(String(url), init)
+  }
+
+  const origTimeout = AbortSignal.timeout.bind(AbortSignal)
+  const timeoutCalls = []
+  AbortSignal.timeout = (ms) => {
+    timeoutCalls.push(ms)
+    return origTimeout(ms)
+  }
+
+  t.teardown(() => {
+    globalThis.fetch = origFetch
+    AbortSignal.timeout = origTimeout
   })
 
-  test('returns the shared internal { instructions, lookupTables, quote } shape', async () => {
-    const out = await buildV2(PARAMS, {})
-    expect(out).toHaveProperty('instructions')
-    expect(out).toHaveProperty('lookupTables')
-    expect(out).toHaveProperty('quote')
-  })
+  return { calls, timeoutCalls }
+}
 
-  test('prepends a SetComputeUnitLimit instruction (first ix = ComputeBudget, discriminator 2)', async () => {
-    const { instructions } = await buildV2(PARAMS, { computeUnitLimit: 1_400_000 })
-    const first = instructions[0]
-    expect(first.programId).toBe(COMPUTE_BUDGET_PROGRAM)
-    expect([...Buffer.from(first.data, 'base64')][0]).toBe(2)
-    // exactly one extra instruction vs the fixture's ungrouped count
-    const ungrouped = [
-      ...fixture.computeBudgetInstructions,
-      ...fixture.setupInstructions,
-      fixture.swapInstruction,
-      ...(fixture.cleanupInstruction ? [fixture.cleanupInstruction] : []),
-      ...fixture.otherInstructions
-    ]
-    expect(instructions).toHaveLength(ungrouped.length + 1)
-  })
+// Default handler: every fetch returns the v2 /build fixture (ok 200).
+function okFixture () {
+  return (t) => setup(t, () => makeResponse(fixture))
+}
 
-  test('ungroups in order computeBudget -> setup -> swap -> cleanup -> other', async () => {
-    const { instructions } = await buildV2(PARAMS, {})
-    // [0] is the prepended CU-limit; [1] is the fixture's first computeBudget (CU price)
-    const afterPrepend = instructions.slice(1)
-    expect(afterPrepend[0].programId).toBe(fixture.computeBudgetInstructions[0].programId)
-    // the swap instruction is the Jupiter aggregator program
-    expect(afterPrepend).toContainEqual(fixture.swapInstruction)
-    const swapIdx = afterPrepend.findIndex((i) => i === fixture.swapInstruction)
-    const setupCount = fixture.computeBudgetInstructions.length + fixture.setupInstructions.length
-    expect(swapIdx).toBe(setupCount)
-  })
+test('buildV2 — returns the shared internal { instructions, lookupTables, quote } shape', async (t) => {
+  okFixture()(t)
+  const out = await buildV2(PARAMS, {})
+  t.ok('instructions' in out)
+  t.ok('lookupTables' in out)
+  t.ok('quote' in out)
+})
 
-  test('lookupTables === addressesByLookupTableAddress (inlined, no RPC)', async () => {
-    const { lookupTables } = await buildV2(PARAMS, {})
-    expect(lookupTables).toEqual(fixture.addressesByLookupTableAddress)
-    expect(Object.keys(lookupTables).length).toBeGreaterThan(0)
-  })
+test('buildV2 — prepends a SetComputeUnitLimit instruction (first ix = ComputeBudget, discriminator 2)', async (t) => {
+  okFixture()(t)
+  const { instructions } = await buildV2(PARAMS, { computeUnitLimit: 1_400_000 })
+  const first = instructions[0]
+  t.is(first.programId, COMPUTE_BUDGET_PROGRAM)
+  t.is([...Buffer.from(first.data, 'base64')][0], 2)
+  // exactly one extra instruction vs the fixture's ungrouped count
+  const ungrouped = [
+    ...fixture.computeBudgetInstructions,
+    ...fixture.setupInstructions,
+    fixture.swapInstruction,
+    ...(fixture.cleanupInstruction ? [fixture.cleanupInstruction] : []),
+    ...fixture.otherInstructions
+  ]
+  t.is(instructions.length, ungrouped.length + 1)
+})
 
-  test('parses quote.inAmount / outAmount from the embedded quote', async () => {
-    const { quote } = await buildV2(PARAMS, {})
-    expect(quote.inAmount).toBe(fixture.inAmount)
-    expect(quote.outAmount).toBe(fixture.outAmount)
-    expect(quote.swapMode).toBe(fixture.swapMode)
-    expect(quote.routePlan).toEqual(fixture.routePlan)
-  })
+test('buildV2 — ungroups in order computeBudget -> setup -> swap -> cleanup -> other', async (t) => {
+  okFixture()(t)
+  const { instructions } = await buildV2(PARAMS, {})
+  // [0] is the prepended CU-limit; [1] is the fixture's first computeBudget (CU price)
+  const afterPrepend = instructions.slice(1)
+  t.is(afterPrepend[0].programId, fixture.computeBudgetInstructions[0].programId)
+  // the swap instruction is the Jupiter aggregator program
+  t.ok(afterPrepend.some((i) => JSON.stringify(i) === JSON.stringify(fixture.swapInstruction)))
+  const swapIdx = afterPrepend.findIndex((i) => i === fixture.swapInstruction)
+  const setupCount = fixture.computeBudgetInstructions.length + fixture.setupInstructions.length
+  t.is(swapIdx, setupCount)
+})
 
-  test('sends x-api-key header iff jupiterApiKey is set', async () => {
-    await buildV2(PARAMS, { jupiterApiKey: 'secret-key' })
-    const [, init] = global.fetch.mock.calls[0]
-    expect(init.headers['x-api-key']).toBe('secret-key')
-  })
+test('buildV2 — lookupTables === addressesByLookupTableAddress (inlined, no RPC)', async (t) => {
+  okFixture()(t)
+  const { lookupTables } = await buildV2(PARAMS, {})
+  t.alike(lookupTables, fixture.addressesByLookupTableAddress)
+  t.ok(Object.keys(lookupTables).length > 0)
+})
 
-  test('omits x-api-key header when no jupiterApiKey', async () => {
-    await buildV2(PARAMS, {})
-    const [url, init] = global.fetch.mock.calls[0]
-    expect(init.headers['x-api-key']).toBeUndefined()
-    // keyless default -> lite host
-    expect(String(url)).toContain('lite-api.jup.ag')
-  })
+test('buildV2 — parses quote.inAmount / outAmount from the embedded quote', async (t) => {
+  okFixture()(t)
+  const { quote } = await buildV2(PARAMS, {})
+  t.is(quote.inAmount, fixture.inAmount)
+  t.is(quote.outAmount, fixture.outAmount)
+  t.is(quote.swapMode, fixture.swapMode)
+  t.alike(quote.routePlan, fixture.routePlan)
+})
 
-  test('uses the keyed host when an API key is set', async () => {
-    await buildV2(PARAMS, { jupiterApiKey: 'k' })
-    const [url] = global.fetch.mock.calls[0]
-    expect(String(url)).toContain('api.jup.ag/swap/v2/build')
-    expect(String(url)).not.toContain('lite-api')
-  })
+test('buildV2 — sends x-api-key header iff jupiterApiKey is set', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(PARAMS, { jupiterApiKey: 'secret-key' })
+  const [, init] = calls[0]
+  t.is(init.headers['x-api-key'], 'secret-key')
+})
 
-  test('throws on non-ok response', async () => {
-    global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 400, text: async () => 'bad request' })
-    await expect(buildV2(PARAMS, {})).rejects.toThrow('Jupiter v2 /build failed: 400')
-  })
+test('buildV2 — omits x-api-key header when no jupiterApiKey', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(PARAMS, {})
+  const [url, init] = calls[0]
+  t.is(init.headers['x-api-key'], undefined)
+  // keyless default -> lite host
+  t.ok(String(url).includes('lite-api.jup.ag'))
+})
 
-  test('passes an AbortSignal timeout to fetch (default 15000ms)', async () => {
-    const spy = jest.spyOn(AbortSignal, 'timeout')
-    await buildV2(PARAMS, {})
-    expect(spy).toHaveBeenCalledWith(15000)
-    const [, init] = global.fetch.mock.calls[0]
-    expect(init.signal).toBeInstanceOf(AbortSignal)
-  })
+test('buildV2 — uses the keyed host when an API key is set', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(PARAMS, { jupiterApiKey: 'k' })
+  const [url] = calls[0]
+  t.ok(String(url).includes('api.jup.ag/swap/v2/build'))
+  t.absent(String(url).includes('lite-api'))
+})
 
-  test('honors a custom timeoutMs', async () => {
-    const spy = jest.spyOn(AbortSignal, 'timeout')
-    await buildV2(PARAMS, { timeoutMs: 1234 })
-    expect(spy).toHaveBeenCalledWith(1234)
-  })
+test('buildV2 — throws on non-ok response', async (t) => {
+  setup(t, () => makeResponse('bad request', { ok: false, status: 400 }))
+  await t.exception(async () => { await buildV2(PARAMS, {}) }, /Jupiter v2 \/build failed: 400/)
+})
 
-  test('sets computeUnitPricePercentile (cfg) and destinationTokenAccount (params) in the query', async () => {
-    await buildV2(
-      { ...PARAMS, destinationTokenAccount: 'DestTokenAcct1111111111111111111111111111111' },
-      { computeUnitPricePercentile: 25 }
-    )
-    const [url] = global.fetch.mock.calls[0]
-    expect(String(url)).toContain('computeUnitPricePercentile=25')
-    expect(String(url)).toContain('destinationTokenAccount=DestTokenAcct1111111111111111111111111111111')
-  })
+test('buildV2 — passes an AbortSignal timeout to fetch (default 15000ms)', async (t) => {
+  const { calls, timeoutCalls } = setup(t, () => makeResponse(fixture))
+  await buildV2(PARAMS, {})
+  t.ok(timeoutCalls.includes(15000))
+  const [, init] = calls[0]
+  t.ok(init.signal instanceof AbortSignal)
+})
 
-  test('applies route-shaping (dexes array + onlyDirectRoutes) to the query', async () => {
-    await buildV2(PARAMS, { dexes: ['Whirlpool', 'Raydium'], onlyDirectRoutes: true })
-    const [url] = global.fetch.mock.calls[0]
-    expect(String(url)).toContain('dexes=Whirlpool%2CRaydium')
-    expect(String(url)).toContain('onlyDirectRoutes=true')
-  })
+test('buildV2 — honors a custom timeoutMs', async (t) => {
+  const { timeoutCalls } = setup(t, () => makeResponse(fixture))
+  await buildV2(PARAMS, { timeoutMs: 1234 })
+  t.ok(timeoutCalls.includes(1234))
+})
 
-  test('an explicit jupiterBaseUrl overrides host selection', async () => {
-    await buildV2(PARAMS, { jupiterBaseUrl: 'https://my.proxy.example' })
-    const [url] = global.fetch.mock.calls[0]
-    expect(String(url)).toContain('https://my.proxy.example/swap/v2/build')
-  })
+test('buildV2 — sets computeUnitPricePercentile (cfg) and destinationTokenAccount (params) in the query', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(
+    { ...PARAMS, destinationTokenAccount: 'DestTokenAcct1111111111111111111111111111111' },
+    { computeUnitPricePercentile: 25 }
+  )
+  const [url] = calls[0]
+  t.ok(String(url).includes('computeUnitPricePercentile=25'))
+  t.ok(String(url).includes('destinationTokenAccount=DestTokenAcct1111111111111111111111111111111'))
+})
 
-  test('slippageBps falls back to cfg.slippageBps when params omits it', async () => {
-    await buildV2(
-      { inputMint: PARAMS.inputMint, outputMint: PARAMS.outputMint, amount: PARAMS.amount, taker: PARAMS.taker },
-      { slippageBps: 99 }
-    )
-    expect(String(global.fetch.mock.calls[0][0])).toContain('slippageBps=99')
-  })
+test('buildV2 — applies route-shaping (dexes array + onlyDirectRoutes) to the query', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(PARAMS, { dexes: ['Whirlpool', 'Raydium'], onlyDirectRoutes: true })
+  const [url] = calls[0]
+  t.ok(String(url).includes('dexes=Whirlpool%2CRaydium'))
+  t.ok(String(url).includes('onlyDirectRoutes=true'))
+})
 
-  test('slippageBps falls back to the default when neither params nor cfg set it', async () => {
-    await buildV2(
-      { inputMint: PARAMS.inputMint, outputMint: PARAMS.outputMint, amount: PARAMS.amount, taker: PARAMS.taker },
-      {}
-    )
-    expect(String(global.fetch.mock.calls[0][0])).toContain(`slippageBps=${DEFAULT_SLIPPAGE_BPS}`)
-  })
+test('buildV2 — an explicit jupiterBaseUrl overrides host selection', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(PARAMS, { jupiterBaseUrl: 'https://my.proxy.example' })
+  const [url] = calls[0]
+  t.ok(String(url).includes('https://my.proxy.example/swap/v2/build'))
+})
 
-  test('accepts dexes as a plain string (not just an array)', async () => {
-    await buildV2(PARAMS, { dexes: 'Whirlpool' })
-    expect(String(global.fetch.mock.calls[0][0])).toContain('dexes=Whirlpool')
-  })
+test('buildV2 — slippageBps falls back to cfg.slippageBps when params omits it', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(
+    { inputMint: PARAMS.inputMint, outputMint: PARAMS.outputMint, amount: PARAMS.amount, taker: PARAMS.taker },
+    { slippageBps: 99 }
+  )
+  t.ok(String(calls[0][0]).includes('slippageBps=99'))
+})
 
-  test('tolerates a response that omits the optional instruction groups + ALTs', async () => {
-    const minimal = { swapInstruction: { programId: 'Jup6', accounts: [], data: 'Ag==' }, inAmount: '1', outAmount: '2', swapMode: 'ExactIn' }
-    global.fetch = mockFetchOk(minimal)
-    const out = await buildV2(PARAMS, {})
-    // only the prepended CU-limit + the lone swap instruction survive .filter(Boolean)
-    expect(out.instructions).toHaveLength(2)
-    expect(out.instructions[1]).toEqual(minimal.swapInstruction)
-    expect(out.lookupTables).toEqual({})
-  })
+test('buildV2 — slippageBps falls back to the default when neither params nor cfg set it', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(
+    { inputMint: PARAMS.inputMint, outputMint: PARAMS.outputMint, amount: PARAMS.amount, taker: PARAMS.taker },
+    {}
+  )
+  t.ok(String(calls[0][0]).includes(`slippageBps=${DEFAULT_SLIPPAGE_BPS}`))
+})
 
-  test('defaults cfg to {} when called with no config arg (default-param branch)', async () => {
-    const out = await buildV2(PARAMS)
-    expect(out).toHaveProperty('instructions')
-    // keyless default -> lite host
-    expect(String(global.fetch.mock.calls[0][0])).toContain('lite-api.jup.ag')
-  })
+test('buildV2 — accepts dexes as a plain string (not just an array)', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  await buildV2(PARAMS, { dexes: 'Whirlpool' })
+  t.ok(String(calls[0][0]).includes('dexes=Whirlpool'))
+})
+
+test('buildV2 — tolerates a response that omits the optional instruction groups + ALTs', async (t) => {
+  const minimal = { swapInstruction: { programId: 'Jup6', accounts: [], data: 'Ag==' }, inAmount: '1', outAmount: '2', swapMode: 'ExactIn' }
+  setup(t, () => makeResponse(minimal))
+  const out = await buildV2(PARAMS, {})
+  // only the prepended CU-limit + the lone swap instruction survive .filter(Boolean)
+  t.is(out.instructions.length, 2)
+  t.alike(out.instructions[1], minimal.swapInstruction)
+  t.alike(out.lookupTables, {})
+})
+
+test('buildV2 — defaults cfg to {} when called with no config arg (default-param branch)', async (t) => {
+  const { calls } = setup(t, () => makeResponse(fixture))
+  const out = await buildV2(PARAMS)
+  t.ok('instructions' in out)
+  // keyless default -> lite host
+  t.ok(String(calls[0][0]).includes('lite-api.jup.ag'))
 })

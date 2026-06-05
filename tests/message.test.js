@@ -1,4 +1,4 @@
-import { describe, expect, test } from '@jest/globals'
+import test from 'brittle'
 
 import { buildSwapMessage } from '../src/message.js'
 import { toKitInstruction } from '../src/instructions.js'
@@ -17,30 +17,28 @@ function kitIx (accounts = []) {
   })
 }
 
-describe('buildSwapMessage', () => {
-  test('builds a v0 message with the instructions appended (no-ALT branch)', () => {
-    const msg = buildSwapMessage([kitIx(), kitIx()], {})
-    expect(msg.version).toBe(0)
-    expect(msg.instructions).toHaveLength(2)
-  })
+test('buildSwapMessage — builds a v0 message with the instructions appended (no-ALT branch)', (t) => {
+  const msg = buildSwapMessage([kitIx(), kitIx()], {})
+  t.is(msg.version, 0)
+  t.is(msg.instructions.length, 2)
+})
 
-  test('treats undefined lookupTables as the no-ALT branch (no compression)', () => {
-    const msg = buildSwapMessage([kitIx()], undefined)
-    expect(msg.version).toBe(0)
-    expect(msg.instructions).toHaveLength(1)
-    expect(msg.addressTableLookups ?? []).toHaveLength(0)
-  })
+test('buildSwapMessage — treats undefined lookupTables as the no-ALT branch (no compression)', (t) => {
+  const msg = buildSwapMessage([kitIx()], undefined)
+  t.is(msg.version, 0)
+  t.is(msg.instructions.length, 1)
+  t.is((msg.addressTableLookups ?? []).length, 0)
+})
 
-  test('compresses with ALTs when a non-empty lookupTables map is given', () => {
-    const accounts = [
-      { pubkey: ACC_A, isSigner: false, isWritable: true },
-      { pubkey: ACC_B, isSigner: false, isWritable: false }
-    ]
-    const msg = buildSwapMessage([kitIx(accounts)], { [TABLE]: [ACC_A, ACC_B] })
-    // Exercises the compress-with-ALTs branch. The lookup table only materialises as
-    // `addressTableLookups` once the message is compiled; on the uncompiled message we
-    // assert the compression step runs without throwing and preserves the v0 shape.
-    expect(msg.version).toBe(0)
-    expect(msg.instructions).toHaveLength(1)
-  })
+test('buildSwapMessage — compresses with ALTs when a non-empty lookupTables map is given', (t) => {
+  const accounts = [
+    { pubkey: ACC_A, isSigner: false, isWritable: true },
+    { pubkey: ACC_B, isSigner: false, isWritable: false }
+  ]
+  const msg = buildSwapMessage([kitIx(accounts)], { [TABLE]: [ACC_A, ACC_B] })
+  // Exercises the compress-with-ALTs branch. The lookup table only materialises as
+  // `addressTableLookups` once the message is compiled; on the uncompiled message we
+  // assert the compression step runs without throwing and preserves the v0 shape.
+  t.is(msg.version, 0)
+  t.is(msg.instructions.length, 1)
 })
