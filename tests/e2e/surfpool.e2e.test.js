@@ -14,12 +14,15 @@
 //   1) install + start Surfpool on 127.0.0.1:8899 (mainnet fork) — see tests/e2e/README.md
 //   2) SURFPOOL_RPC=http://127.0.0.1:8899 npm test
 //
+// Runs under brittle-node (it needs the real WDK wallet + Solana RPC over Node APIs);
+// the brittle-bare run excludes it.
+//
 // Route is pinned to a single Orca Whirlpool hop (`dexes:'Whirlpool', onlyDirectRoutes`)
 // with a small amount: a mainnet fork lazily loads accounts from a public datasource, and
 // a single deep, well-indexed pool keeps every required account serveable + the tx within
 // the size limit. The bounded retry absorbs the rare datasource race / route-size variant.
 
-import { describe, test, expect, beforeAll } from '@jest/globals'
+import test from 'brittle'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -63,7 +66,7 @@ async function airdrop (addr, lamports) {
   for (let i = 0; i < 40; i++) {
     const { value } = await rpc.getBalance(address(addr), { commitment: 'confirmed' }).send()
     if (value > 0n) return value
-    await new Promise(r => setTimeout(r, 400))
+    await new Promise(resolve => setTimeout(resolve, 400))
   }
   throw new Error('airdrop did not land')
 }
@@ -104,80 +107,77 @@ async function confirm (signature) {
       if (status.err) throw new Error('tx failed on-chain: ' + JSON.stringify(status.err))
       if (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized') return status
     }
-    await new Promise(r => setTimeout(r, 400))
+    await new Promise(resolve => setTimeout(resolve, 400))
   }
   throw new Error('tx not confirmed in time')
 }
 
 const RUN = await reachable()
-const suite = RUN ? describe : describe.skip
+// brittle has no describe/skip-suite; gate the single test on reachability so a plain run
+// (no validator) cleanly SKIPS instead of failing.
+const e2e = RUN ? test : test.skip
 if (!RUN) {
   // eslint-disable-next-line no-console
   console.warn(`[surfpool.e2e] SKIPPED — no RPC at ${RPC}. Start Surfpool and set SURFPOOL_RPC to run (see tests/e2e/README.md).`)
 }
 
-suite('Surfpool E2E — real WSOL->USDT swap lands and increases USDT (DESIGN §4c)', () => {
-  let account
-  let preUsdt
+e2e('Surfpool E2E — real WSOL->USDT swap lands and increases USDT (DESIGN §4c)', async (t) => {
+  t.timeout(300_000)
 
-  beforeAll(async () => {
-    const wallet = new WalletManagerSolana(bip39.generateMnemonic(), { provider: RPC, commitment: 'confirmed' })
-    account = await wallet.getAccount(0)
-    const addr = await account.getAddress()
-    await airdrop(addr, 5_000_000_000n) // 5 SOL for fees + wrap
-    preUsdt = await account.getTokenBalance(USDT)
-  }, 120_000)
+  // setup (was beforeAll): fresh wallet, airdrop, snapshot pre-balance.
+  const wallet = new WalletManagerSolana(bip39.generateMnemonic(), { provider: RPC, commitment: 'confirmed' })
+  const account = await wallet.getAccount(0)
+  const addr = await account.getAddress()
+  await airdrop(addr, 5_000_000_000n) // 5 SOL for fees + wrap
+  const preUsdt = await account.getTokenBalance(USDT)
 
-  test('quote -> build (ALT-compressed, no feePayer/lifetime) -> wallet sign/send -> confirm -> USDT post > pre', async () => {
-    const protocol = new JupiterProtocolSolana(account, CONFIG)
-    const addr = await account.getAddress()
+  const protocol = new JupiterProtocolSolana(account, CONFIG)
 
-    // Bounded retry: a free public datasource occasionally fails to serve a route variant's
-    // accounts (or returns a too-large tx); re-quoting + re-warming lands a serveable route.
-    let result
-    let lastErr
-    for (let attempt = 1; attempt <= 8; attempt++) {
-      try {
-        await prewarm(addr)
-        result = await protocol.swap({ tokenIn: WSOL, tokenOut: USDT, tokenInAmount: AMOUNT })
-        break
-      } catch (err) {
-        lastErr = err
-        await new Promise(r => setTimeout(r, 700))
-      }
+  // Bounded retry: a free public datasource occasionally fails to serve a route variant's
+  // accounts (or returns a too-large tx); re-quoting + re-warming lands a serveable route.
+  let result
+  let lastErr
+  for (let attempt = 1; attempt <= 8; attempt++) {
+    try {
+      await prewarm(addr)
+      result = await protocol.swap({ tokenIn: WSOL, tokenOut: USDT, tokenInAmount: AMOUNT })
+      break
+    } catch (err) {
+      lastErr = err
+      await new Promise(resolve => setTimeout(resolve, 700))
     }
-    if (!result) throw lastErr
+  }
+  if (!result) throw lastErr
 
-    const status = await confirm(result.hash)
-    const postUsdt = await account.getTokenBalance(USDT)
+  const status = await confirm(result.hash)
+  const postUsdt = await account.getTokenBalance(USDT)
 
-    // The actual assertion: a real on-chain USDT balance increase.
-    expect(postUsdt).toBeGreaterThan(preUsdt)
-    expect(typeof result.hash).toBe('string')
-    expect(result.hash.length).toBeGreaterThan(0)
+  // The actual assertion: a real on-chain USDT balance increase.
+  t.ok(postUsdt > preUsdt, 'USDT post > pre')
+  t.is(typeof result.hash, 'string')
+  t.ok(result.hash.length > 0)
 
-    // Persist proof (real signature + pre/post + delta) for the audit.
-    const delta = postUsdt - preUsdt
-    const lines = [
-      'Surfpool E2E — real WSOL->USDT swap (DESIGN §4c: feePayer/lifetime applied AFTER ALT compression still lands)',
-      `timestamp:   ${new Date().toISOString()}`,
-      `rpc:         ${RPC}`,
-      `wallet:      ${addr}`,
-      `route:       dexes=Whirlpool onlyDirectRoutes (single hop)`,
-      `tx hash:     ${result.hash}`,
-      `slot:        ${status.slot}`,
-      `amount in:   ${result.tokenInAmount} (WSOL base units)`,
-      `quote out:   ${result.tokenOutAmount} (USDT base units)`,
-      `pre  USDT:   ${preUsdt}`,
-      `post USDT:   ${postUsdt}`,
-      `delta:       +${delta}`,
-      `fee:         ${result.fee}`,
-      `adapter:     v2 /build (ExactIn SELL, default path)`,
-      ''
-    ].join('\n')
-    mkdirSync(dirname(EVIDENCE), { recursive: true })
-    writeFileSync(EVIDENCE, lines)
-    // eslint-disable-next-line no-console
-    console.log(lines)
-  }, 180_000)
+  // Persist proof (real signature + pre/post + delta) for the audit.
+  const delta = postUsdt - preUsdt
+  const lines = [
+    'Surfpool E2E — real WSOL->USDT swap (DESIGN §4c: feePayer/lifetime applied AFTER ALT compression still lands)',
+    `timestamp:   ${new Date().toISOString()}`,
+    `rpc:         ${RPC}`,
+    `wallet:      ${addr}`,
+    'route:       dexes=Whirlpool onlyDirectRoutes (single hop)',
+    `tx hash:     ${result.hash}`,
+    `slot:        ${status.slot}`,
+    `amount in:   ${result.tokenInAmount} (WSOL base units)`,
+    `quote out:   ${result.tokenOutAmount} (USDT base units)`,
+    `pre  USDT:   ${preUsdt}`,
+    `post USDT:   ${postUsdt}`,
+    `delta:       +${delta}`,
+    `fee:         ${result.fee}`,
+    'adapter:     v2 /build (ExactIn SELL, default path)',
+    ''
+  ].join('\n')
+  mkdirSync(dirname(EVIDENCE), { recursive: true })
+  writeFileSync(EVIDENCE, lines)
+  // eslint-disable-next-line no-console
+  console.log(lines)
 })

@@ -32,8 +32,9 @@
     "build:types": "tsc && node scripts/patch-types.mjs",
     "lint": "standard",
     "lint:fix": "standard --fix",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test": "brittle-node \"tests/**/*.test.js\"",
+    "test:bare": "brittle-bare \"tests/instructions.test.js\" \"tests/message.test.js\"",
+    "test:coverage": "brittle-node --coverage --cov-dir ./coverage \"tests/**/*.test.js\"",
     "spike:a": "bare spikes/phase-0/spike-a-bare-fetch-tls.cjs",
     "spike:b:sim": "node spikes/phase-0/spike-b-sim-mainnet.mjs",
     "spike:b:surfpool": "node spikes/phase-0/spike-b-alt-route-surfpool.mjs"
@@ -55,8 +56,6 @@
     "bare-fetch": "3.0.1",
     "bip39": "3.1.0",
     "brittle": "4.0.2",
-    "cross-env": "10.0.0",
-    "jest": "30.0.5",
     "standard": "17.1.2",
     "typescript": "5.8.3"
   },
@@ -74,15 +73,9 @@
     "access": "public",
     "registry": "https://registry.npmjs.org/"
   },
-  "jest": {
-    "collectCoverageFrom": [
-      "src/**/*.js"
-    ]
-  },
   "standard": {
     "ignore": [
       "bare.js",
-      "tests/**/*.js",
       "spikes/**/*",
       "types/**/*"
     ]
