@@ -90,7 +90,7 @@ through the account, and returns the (quoted) fee alongside the on-chain `hash`.
 | `tokenOut` | `string` | yes | mint of the token to buy |
 | `tokenInAmount` | `number \| bigint` | conditional | exact input: a **SELL** (ExactIn) |
 | `tokenOutAmount` | `number \| bigint` | conditional | exact output: a **BUY** (ExactOut) |
-| `to` | `string` | no | recipient SPL **token account** for `tokenOut`; defaults to the account's own token account |
+| `to` | `string` | no | recipient **owner wallet** address; the module derives its ATA for `tokenOut` and idempotently creates it. Defaults to the taker's own ATA when omitted. |
 
 `tokenInAmount` and `tokenOutAmount` are mutually exclusive, so provide exactly one:
 
@@ -102,10 +102,17 @@ through the account, and returns the (quoted) fee alongside the on-chain `hash`.
 Providing neither throws `A swap requires either tokenInAmount (SELL) or tokenOutAmount (BUY).`
 Providing both throws `A swap requires exactly one of tokenInAmount (SELL) or tokenOutAmount (BUY), not both.`
 
-> `to` is passed straight to Jupiter as `destinationTokenAccount`, which expects a token
-> account address (not an owner wallet address). Deriving the associated token account from
-> an owner address is a planned enhancement; for now, pass the recipient's SPL token account
-> for `tokenOut`.
+> `to` is the recipient's **owner wallet** address (parity with the EVM velora module). The
+> module derives `to`'s Associated Token Account for `tokenOut` (RPC-free PDA derivation),
+> passes that as Jupiter's `destinationTokenAccount`, and prepends a
+> `createAssociatedTokenAccountIdempotent` instruction so a fresh recipient with no existing
+> ATA still works (idempotent — a no-op if the ATA already exists). The taker (fee payer) pays
+> the ATA's ~0.002 SOL rent. When `to` is omitted, behaviour is unchanged: Jupiter defaults the
+> destination to the taker's own ATA and no create instruction is added.
+>
+> **Classic SPL only.** Token-2022 mints are not supported here: detecting a mint's owning
+> token program would require an on-chain account read, which would break the RPC-free
+> guarantee. `to` must be the owner of a classic-SPL `tokenOut`.
 
 ## Configuration
 

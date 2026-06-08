@@ -41,6 +41,7 @@
   },
   "dependencies": {
     "@solana-program/address-lookup-table": "0.9.0",
+    "@solana-program/token": "0.7.0",
     "@solana/addresses": "3.0.3",
     "@solana/instructions": "3.0.3",
     "@solana/rpc": "3.0.3",

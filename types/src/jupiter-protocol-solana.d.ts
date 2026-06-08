@@ -63,10 +63,15 @@ export default class JupiterProtocolSolana extends SwapProtocol {
      * BUY (`tokenOutAmount`) -> v1 `swapMode=ExactOut` (v2 `/build` is ExactIn-only, so BUY
      * always routes to v1 regardless of `apiVersion`).
      *
-     * `to` (optional): passed through to Jupiter as `destinationTokenAccount`. NOTE: Jupiter
-     * expects a token ACCOUNT address here, not the owner's wallet address. ATA derivation
-     * from an owner address is a documented Medium enhancement (would add `@solana-program/token`)
-     * — not done here; pass `to` as the recipient's SPL token account for `tokenOut`.
+     * `to` (optional): the recipient's OWNER wallet address (parity with the EVM velora module).
+     * The module derives `to`'s Associated Token Account (ATA) for `tokenOut` and passes THAT as
+     * Jupiter's `destinationTokenAccount`, then prepends a `createAssociatedTokenAccountIdempotent`
+     * instruction (a no-op if the ATA already exists) so a fresh recipient still works — the taker
+     * (fee payer) pays ~0.002 SOL rent for it. Derivation is RPC-free (pure PDA). When `to` is
+     * unset, behaviour is unchanged: Jupiter defaults `destinationTokenAccount` to the taker's own
+     * ATA and no create instruction is added. CLASSIC SPL ONLY: Token-2022 mints are unsupported
+     * here — detecting the mint's owning program would require an RPC call, breaking the RPC-free
+     * guarantee.
      *
      * @private
      * @param {SwapOptions} options

@@ -21,6 +21,7 @@ import { buildV2 } from './adapters/jupiter-v2.js'
 import { buildV1 } from './adapters/jupiter-v1.js'
 import { toKitInstruction } from './instructions.js'
 import { buildSwapMessage } from './message.js'
+import { deriveAta, createAtaIdempotentIx } from './ata.js'
 
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SwapProtocolConfig} SwapProtocolConfig */
 /** @typedef {import('@tetherto/wdk-wallet/protocols').SwapOptions} SwapOptions */
@@ -124,10 +125,15 @@ export default class JupiterProtocolSolana extends SwapProtocol {
    * BUY (`tokenOutAmount`) -> v1 `swapMode=ExactOut` (v2 `/build` is ExactIn-only, so BUY
    * always routes to v1 regardless of `apiVersion`).
    *
-   * `to` (optional): passed through to Jupiter as `destinationTokenAccount`. NOTE: Jupiter
-   * expects a token ACCOUNT address here, not the owner's wallet address. ATA derivation
-   * from an owner address is a documented Medium enhancement (would add `@solana-program/token`)
-   * — not done here; pass `to` as the recipient's SPL token account for `tokenOut`.
+   * `to` (optional): the recipient's OWNER wallet address (parity with the EVM velora module).
+   * The module derives `to`'s Associated Token Account (ATA) for `tokenOut` and passes THAT as
+   * Jupiter's `destinationTokenAccount`, then prepends a `createAssociatedTokenAccountIdempotent`
+   * instruction (a no-op if the ATA already exists) so a fresh recipient still works — the taker
+   * (fee payer) pays ~0.002 SOL rent for it. Derivation is RPC-free (pure PDA). When `to` is
+   * unset, behaviour is unchanged: Jupiter defaults `destinationTokenAccount` to the taker's own
+   * ATA and no create instruction is added. CLASSIC SPL ONLY: Token-2022 mints are unsupported
+   * here — detecting the mint's owning program would require an RPC call, breaking the RPC-free
+   * guarantee.
    *
    * @private
    * @param {SwapOptions} options
@@ -143,12 +149,17 @@ export default class JupiterProtocolSolana extends SwapProtocol {
       throw new Error('A swap requires exactly one of tokenInAmount (SELL) or tokenOutAmount (BUY), not both.')
     }
 
+    // `to` = recipient OWNER wallet -> derive its classic-SPL ATA for `tokenOut` and pass THAT
+    // as Jupiter's destinationTokenAccount. RPC-free. When `to` is unset, destinationTokenAccount
+    // stays omitted so Jupiter defaults to the taker's own ATA (behaviour unchanged).
+    const destinationAta = to ? await deriveAta(to, tokenOut) : undefined
+
     const params = {
       inputMint: tokenIn,
       outputMint: tokenOut,
       taker,
       slippageBps: this._config.slippageBps,
-      destinationTokenAccount: to
+      destinationTokenAccount: destinationAta
     }
 
     let adapter
@@ -168,7 +179,13 @@ export default class JupiterProtocolSolana extends SwapProtocol {
     }
 
     const { instructions, lookupTables, quote } = await adapter(params, this._config)
-    const message = buildSwapMessage(instructions.map(toKitInstruction), lookupTables)
+    const kitIxs = instructions.map(toKitInstruction)
+    if (to) {
+      // Idempotently create the recipient's ATA BEFORE the swap (index 0). Already kit-shaped,
+      // so it bypasses `toKitInstruction`. taker funds the rent.
+      kitIxs.unshift(createAtaIdempotentIx({ payer: taker, ata: destinationAta, owner: to, mint: tokenOut }))
+    }
+    const message = buildSwapMessage(kitIxs, lookupTables)
     return {
       message,
       tokenInAmount: BigInt(quote.inAmount),

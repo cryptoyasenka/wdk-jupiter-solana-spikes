@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { WalletAccountSolana, WalletAccountReadOnlySolana } from '@tetherto/wdk-wallet-solana'
 
 import JupiterProtocolSolana from '../index.js'
+import { deriveAta } from '../src/ata.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const v2Fixture = JSON.parse(readFileSync(join(__dirname, 'fixtures', 'jupiter-v2-build.json'), 'utf8'))
@@ -17,6 +18,9 @@ const v1IxNoAlt = { ...v1Ix, addressLookupTableAddresses: [] }
 const WSOL = 'So11111111111111111111111111111111111111112'
 const USDT = 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB'
 const TAKER = 'GDDMwNyyx8uB6zrqwBFHjLLG3TBYk2F8Az4yrQC5RzMp'
+const RECIPIENT = 'AKEWE7Bgh87GPp171b4cJPSSZfmZwQ3KaqYqXoKLNAEE' // recipient OWNER wallet for the `to` option
+const ATA_PROGRAM = 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'
+const COMPUTE_BUDGET_PROGRAM = 'ComputeBudget111111111111111111111111111111'
 const SELL_OPTIONS = { tokenIn: WSOL, tokenOut: USDT, tokenInAmount: 100_000_000n }
 const BUY_OPTIONS = { tokenIn: WSOL, tokenOut: USDT, tokenOutAmount: 100_000_000n }
 
@@ -216,12 +220,46 @@ test('mapping — SELL maps tokenIn/tokenOut/amount/taker + slippage into the v2
   t.ok(url.includes('slippageBps=75'))
 })
 
-test('mapping — passes `to` through as destinationTokenAccount', async (t) => {
+test('mapping — `to` (owner wallet) sends its derived ATA as destinationTokenAccount', async (t) => {
   const net = setup(t)
   const account = makeAccount()
   const protocol = new JupiterProtocolSolana(account, {})
-  await protocol.quoteSwap({ ...SELL_OPTIONS, to: 'DestTokenAcct1111111111111111111111111111111' })
-  t.ok(net.v2Url().includes('destinationTokenAccount=DestTokenAcct1111111111111111111111111111111'))
+  await protocol.quoteSwap({ ...SELL_OPTIONS, to: RECIPIENT })
+  // destinationTokenAccount is the derived ATA of (to, tokenOut), NOT the raw `to` owner.
+  const expectedAta = await deriveAta(RECIPIENT, USDT)
+  t.ok(net.v2Url().includes(`destinationTokenAccount=${expectedAta}`))
+  t.absent(net.v2Url().includes(`destinationTokenAccount=${RECIPIENT}`))
+})
+
+test('mapping — `to` set prepends a create-ATA idempotent instruction at index 0', async (t) => {
+  setup(t)
+  const account = makeAccount()
+  const protocol = new JupiterProtocolSolana(account, {})
+  await protocol.quoteSwap({ ...SELL_OPTIONS, to: RECIPIENT })
+  const msg = account.quoteSendTransaction.calls[0][0]
+  const expectedAta = await deriveAta(RECIPIENT, USDT)
+  const first = msg.instructions[0]
+  // index 0 is the ATA-program create ix, targeting payer=taker, ata=derived, owner=to, mint=tokenOut.
+  t.is(first.programAddress, ATA_PROGRAM)
+  t.is(first.accounts[0].address, TAKER) // payer
+  t.is(first.accounts[1].address, expectedAta) // ata
+  t.is(first.accounts[2].address, RECIPIENT) // owner
+  t.is(first.accounts[3].address, USDT) // mint
+})
+
+test('mapping — `to` unset sends no destinationTokenAccount and prepends no create instruction', async (t) => {
+  const net = setup(t)
+  const account = makeAccount()
+  const protocol = new JupiterProtocolSolana(account, {})
+  await protocol.quoteSwap(SELL_OPTIONS)
+  // no destination param on the outgoing v2 request
+  t.absent(net.v2Url().includes('destinationTokenAccount'))
+  // The module prepends nothing: index 0 is the v2 adapter's ComputeBudget CU-limit ix
+  // (NOT an ATA-program create ix). Note Jupiter's own setupInstructions may legitimately
+  // contain ATA-create ix for the TAKER's own ATA, so we assert on index 0, not "anywhere".
+  const msg = account.quoteSendTransaction.calls[0][0]
+  t.is(msg.instructions[0].programAddress, COMPUTE_BUDGET_PROGRAM)
+  t.not(msg.instructions[0].programAddress, ATA_PROGRAM)
 })
 
 test('mapping — throws when neither tokenInAmount nor tokenOutAmount is provided', async (t) => {
