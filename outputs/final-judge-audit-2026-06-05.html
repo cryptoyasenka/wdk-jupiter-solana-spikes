@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Final Judge Audit - wdk-protocol-swap-jupiter-solana</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #5f6b7a;
+      --line: #d9dee7;
+      --panel: #f7f9fc;
+      --good: #146c43;
+      --warn: #9a5b00;
+      --bad: #9f1239;
+      --info: #1d4ed8;
+    }
+    body {
+      margin: 0;
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: #ffffff;
+    }
+    main {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 40px 24px 56px;
+    }
+    h1, h2, h3 { line-height: 1.2; margin: 0 0 10px; }
+    h1 { font-size: 30px; }
+    h2 { font-size: 20px; margin-top: 30px; border-top: 1px solid var(--line); padding-top: 22px; }
+    h3 { font-size: 16px; margin-top: 22px; }
+    p { margin: 0 0 12px; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+      font-size: 0.94em;
+      background: #eef2f7;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0 20px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 9px 10px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: #eef2f7; }
+    ul { margin: 8px 0 14px 22px; padding: 0; }
+    li { margin: 5px 0; }
+    .muted { color: var(--muted); }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      margin: 18px 0;
+    }
+    .score {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin: 18px 0;
+    }
+    .score div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fff;
+    }
+    .score strong { display: block; font-size: 22px; margin-top: 4px; }
+    .good { color: var(--good); font-weight: 700; }
+    .warn { color: var(--warn); font-weight: 700; }
+    .bad { color: var(--bad); font-weight: 700; }
+    .info { color: var(--info); font-weight: 700; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Final Judge Audit: <code>wdk-protocol-swap-jupiter-solana</code></h1>
+  <p class="muted">Date: 2026-06-05. Scope: full repo review, old HTML audit proofread, official bounty brief alignment, clean install/build/test/package checks, and judge-style submission readiness.</p>
+
+  <section class="panel">
+    <p><strong>Verdict:</strong> submit the <strong>M1 application now</strong>. The repository is no longer just Phase-0 spikes: it contains a real WDK-style Solana Jupiter swap module, typed public surface, tests, CI, docs, and package metadata. As a judge, I would treat it as a strong proposal with unusually credible implementation evidence.</p>
+    <p><strong>Important boundary:</strong> do not present it as fully completed M2/M3 delivery yet unless the remaining spec items are explicitly framed as next milestones. The official brief still asks for <code>brittle</code> tests, a demo/example artifact, npm/docs integration, and a PR to Tether at final delivery.</p>
+  </section>
+
+  <div class="score">
+    <div>
+      M1 proposal readiness
+      <strong class="good">High: 88-92%</strong>
+      <span class="muted">Ready to submit, with honest milestone framing.</span>
+    </div>
+    <div>
+      Final M2/M3 delivery readiness
+      <strong class="warn">Medium-high: 74-80%</strong>
+      <span class="muted">Good codebase, but brittle/demo/PR/npm remain.</span>
+    </div>
+    <div>
+      Judge confidence in execution
+      <strong class="good">High</strong>
+      <span class="muted">Real module, coverage, tarball install, Surfpool path.</span>
+    </div>
+  </div>
+
+  <h2>Findings</h2>
+  <h3>Medium - Spec-mandated test runner is still not satisfied for final delivery</h3>
+  <p>The official WDK Module brief requires automated tests written with <code>holepunchto/brittle</code>. This repo currently runs Jest: <code>package.json</code> has <code>npm test</code> on Jest and <code>jest@30.0.5</code>. The suite quality is strong, but runner compliance is not final-spec compliant yet.</p>
+  <p><strong>Judge read:</strong> acceptable for M1 if stated as "reference implementation now, brittle port in M2"; risky if submitted as finished module delivery.</p>
+
+  <h3>Medium - M3 artifacts are planned, not complete</h3>
+  <p>The brief asks for a demo video or example script and a PR to Tether. The package is also not published to npm yet; <code>npm view wdk-protocol-swap-jupiter-solana version</code> returned 404, which is fine before final scope/publish but not a completed success indicator.</p>
+  <p><strong>Judge read:</strong> good milestone plan; not final bounty closure.</p>
+
+  <h3>Low - Windows type generation leaves a dirty working tree with no content diff</h3>
+  <p>After <code>npm run build:types</code>, Git reported <code>types/*.d.ts</code> as modified, while <code>git diff</code> showed no substantive content changes and only LF/CRLF warnings. This is an operational polish issue.</p>
+  <p><strong>Recommended fix:</strong> add a small <code>.gitattributes</code> normalization rule for generated declaration files and consider a CI check that generated types are stable on Ubuntu.</p>
+
+  <h3>Low - Endpoint language should remain precise</h3>
+  <p>The README correctly says the module supports both the Lite host and keyed <code>api.jup.ag</code>, and carries an optional env-only <code>jupiterApiKey</code>. Because Jupiter's Lite-host behavior is in flux, keep the application wording as "adapter-isolated and finalized in M2" rather than "forever keyless production endpoint guaranteed."</p>
+
+  <h2>Old HTML Audit Proofread</h2>
+  <p><code>bounty-audit-report.html</code> is now stale as a current readiness artifact. It was dated 2026-05-30 and correctly judged the old repo as "not ready as a bounty submission" because it had spikes only. That was accurate then; it is not the current state after the fixes.</p>
+  <table>
+    <thead>
+      <tr><th>Old HTML finding</th><th>Current status</th><th>Judge note</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>No WDK protocol module</td><td class="good">Closed</td><td>Package name, runtime exports, <code>SwapProtocol</code>-style surface, implementation files, and generated types now exist.</td></tr>
+      <tr><td>Jupiter v1-only risk</td><td class="good">Closed</td><td>v2 <code>/build</code> is the default SELL path; v1 remains fallback and BUY/ExactOut path.</td></tr>
+      <tr><td>No meaningful tests/CI</td><td class="good">Closed</td><td>65 tests pass, 100% <code>src/</code> coverage, lint/typecheck/CI present.</td></tr>
+      <tr><td>No real swap/Surfpool path</td><td class="info">Mostly closed</td><td>E2E harness exists and auto-skips without validator. Good for evidence; final M2 should run/record it.</td></tr>
+      <tr><td>Docs/package not ready</td><td class="good">Closed for M1</td><td>README, package metadata, npm pack, and consumer import are strong enough for proposal review.</td></tr>
+    </tbody>
+  </table>
+  <p><strong>Recommendation:</strong> do not link the old HTML as the "current" audit. If you keep it in the repo, label it historical or link this final audit instead.</p>
+
+  <h2>Verification Run</h2>
+  <table>
+    <thead>
+      <tr><th>Check</th><th>Result</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>npm ci --ignore-scripts</code></td><td class="good">PASS</td><td>829 packages installed, 0 vulnerabilities reported in install audit.</td></tr>
+      <tr><td><code>npm run lint</code></td><td class="good">PASS</td><td>Standard lint clean.</td></tr>
+      <tr><td><code>npm test</code></td><td class="good">PASS</td><td>5 suites passed, 1 skipped; 65 passed, 1 skipped.</td></tr>
+      <tr><td><code>npm run test:coverage</code></td><td class="good">PASS</td><td>100% statements, branches, functions, and lines for <code>src</code>.</td></tr>
+      <tr><td><code>npm run build:types</code></td><td class="good">PASS</td><td>Type declarations generated and patched with concrete <code>quoteSwap</code>/<code>swap</code>.</td></tr>
+      <tr><td><code>npx tsc -p typecheck/tsconfig.json</code></td><td class="good">PASS</td><td>Downstream consumer typecheck compiles against generated package types.</td></tr>
+      <tr><td><code>npm audit --omit=dev</code></td><td class="good">PASS</td><td>0 production vulnerabilities.</td></tr>
+      <tr><td><code>npm audit</code></td><td class="good">PASS</td><td>0 vulnerabilities including dev deps.</td></tr>
+      <tr><td><code>npm pack --dry-run --json</code></td><td class="good">PASS</td><td>Tarball allowlist includes runtime files, README, LICENSE, and types; excludes tests/spikes/evidence.</td></tr>
+      <tr><td>Clean consumer tarball install/import</td><td class="good">PASS</td><td>Installed the packed <code>.tgz</code> into a scratch project and imported the module successfully.</td></tr>
+      <tr><td>Secret/TODO scan</td><td class="good">PASS</td><td>No committed real secrets found; env-only Jupiter API key examples are documented correctly.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Strengths a Judge Will Notice</h2>
+  <ul>
+    <li>Clear WDK naming: <code>wdk-protocol-swap-jupiter-solana</code>.</li>
+    <li>Useful gap: same-chain Solana/Jupiter swap module is a clean counterpart to EVM Velora.</li>
+    <li>Good implementation shape: WDK account delegates signing/sending; module composes Solana transaction messages.</li>
+    <li>Jupiter v2 default with v1 fallback for ExactOut is technically credible.</li>
+    <li>Type story is unusually strong: generated declarations plus strict downstream consumer typecheck.</li>
+    <li>Tests are broad and currently all green; coverage is not decorative.</li>
+    <li>Docs are honest about endpoint uncertainty and milestone scope.</li>
+  </ul>
+
+  <h2>Submit Positioning</h2>
+  <p><strong>Use this framing:</strong> "This is an M1 proposal with a working reference implementation already public and runnable. M2 production-hardens it against the official spec by porting tests to brittle, running the Surfpool e2e evidence, and finalizing endpoint policy. M3 publishes/docs/records the demo and opens the Tether PR."</p>
+  <p><strong>Avoid this framing:</strong> "The bounty is fully complete today." That invites a judge to score the missing brittle/demo/PR/npm items as failed final deliverables instead of planned milestone work.</p>
+
+  <h2>Sources Checked</h2>
+  <ul>
+    <li>Live Tether bounty page: <a href="https://tether.dev/grants/bounties/2800544001/">https://tether.dev/grants/bounties/2800544001/</a>.</li>
+    <li>Live WDK community module guidance: <a href="https://docs.wdk.tether.io/sdk/community-modules">https://docs.wdk.tether.io/sdk/community-modules</a>.</li>
+    <li>Official/local bounty brief: <code>C:\Projects\tether-dev-grants\research\WDK-Module.txt</code>.</li>
+    <li>Submission package: <code>C:\Projects\tether-dev-grants\.planning\module-1500\WDK-MODULE-M1-SUBMISSION-FORM.md</code> and proposal files.</li>
+    <li>Project repo: <code>C:\Projects\wdk-jupiter-solana-spikes</code>.</li>
+    <li>Historical audit: <code>C:\Projects\wdk-jupiter-solana-spikes\bounty-audit-report.html</code>.</li>
+  </ul>
+</main>
+</body>
+</html>
